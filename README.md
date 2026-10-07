@@ -1,0 +1,55 @@
+# Eink — elektronische schaplabels voor versspeciaalzaken en supermarkten
+
+Eigen systeem voor meerkleurige e-ink prijslabels voor slagerijen, viswinkels,
+bakkers en supermarkten: **eigen labels (PCB + firmware), eigen basisstation
+met zender, eigen cloudsoftware** die vanuit het kassasysteem wordt aangestuurd
+en op afstand wordt gemonitord.
+
+```
+ Kassa / weegschaal ──REST/CSV──►  Cloud (eink_cloud)  ◄──HTTPS──  Basisstation  ──2,4 GHz──►  Labels
+                                   • producten & prijzen          (Linux + nRF54L15)           (nRF54L15 + e-paper)
+                                   • rendering → bitmap
+                                   • update-jobs & retries
+ Support / monitoring ◄────────────• monitoring, alerts, /metrics
+```
+
+## Inhoud van deze repository
+
+| Map | Wat |
+|---|---|
+| [`docs/`](docs/) | Ontwerp: architectuur, hardware, basisstation, radioprotocol, kassa-API, monitoring, certificering, roadmap |
+| [`backend/`](backend/) | Cloud-backend (Python/FastAPI): kassa-API, label-rendering, job-dispatch, monitoring & alerts — **werkend, met tests** |
+| [`basestation/`](basestation/) | Agent die op het basisstation draait; inclusief **radio-simulator** zodat alles zonder hardware te testen is |
+| [`firmware/`](firmware/) | Label-firmware: beeldformaat (C-header) en decoder; plan voor Zephyr/nRF Connect SDK |
+| [`hardware/`](hardware/) | Eisen en blokschema's voor label-PCB en basisstation-PCB, eerste BOM-schatting |
+
+## Documentatie (begin hier)
+
+1. [Architectuur & keuzes](docs/01-architectuur.md)
+2. [Label-hardware (PCB, display, batterij, behuizing)](docs/02-hardware-label.md)
+3. [Basisstation met zender](docs/03-basisstation.md)
+4. [Radioprotocol & beeldformaat](docs/04-radioprotocol.md)
+5. [Kassa-integratie (API)](docs/05-kassa-integratie.md)
+6. [Monitoring op afstand](docs/06-monitoring.md)
+7. [Certificering & wetgeving](docs/07-certificering-en-wetgeving.md)
+8. [Roadmap, team & kosten](docs/08-roadmap.md)
+
+## Snel starten (zonder hardware)
+
+```bash
+pip install -r backend/requirements.txt -r basestation/requirements.txt
+
+# tests
+python -m pytest backend/tests basestation/tests
+
+# volledige demo: winkel aanmaken, basisstation, 3 labels, prijzen vanuit "kassa",
+# gesimuleerde radio, monitoring-overzicht en PNG-previews in ./demo-output
+python scripts/demo.py
+```
+
+Of als losse services:
+
+```bash
+EINK_ADMIN_TOKEN=geheim uvicorn eink_cloud.main:app --app-dir backend --reload
+# API-documentatie: http://localhost:8000/docs
+```
