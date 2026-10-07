@@ -5,18 +5,28 @@ import os
 
 from fastapi import FastAPI
 
-from .api import admin, basestation, monitoring, pos
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+from .api import admin, basestation, beheer, manage, monitoring, pos
 from .db import make_sessionmaker
+from .licensing import load_or_create_key
 from .monitoring import evaluate_alerts
+from .security import sign
 
 log = logging.getLogger("eink_cloud")
 
 
-def create_app(database_url: str | None = None, admin_token: str | None = None, monitor_interval_s: float | None = 60) -> FastAPI:
+def create_app(database_url: str | None = None, admin_token: str | None = None, monitor_interval_s: float | None = 60,
+               license_key: Ed25519PrivateKey | None = None) -> FastAPI:
     database_url = database_url or os.environ.get("EINK_DATABASE_URL", "sqlite:///eink.db")
     admin_token = admin_token or os.environ.get("EINK_ADMIN_TOKEN")
     if not admin_token:
         raise RuntimeError("EINK_ADMIN_TOKEN is niet gezet")
+    if license_key is None:
+        key_file = os.environ.get("EINK_LICENSE_KEY_FILE")
+        if not key_file:
+            log.warning("EINK_LICENSE_KEY_FILE niet gezet: tijdelijke licentiesleutel, licenties ongeldig na herstart")
+        license_key = load_or_create_key(key_file)
 
     async def monitor_loop(app: FastAPI) -> None:
         while True:
@@ -39,8 +49,11 @@ def create_app(database_url: str | None = None, admin_token: str | None = None, 
                   description="Kassa-API, label-updates en monitoring voor e-ink prijslabels.")
     app.state.sessionmaker = make_sessionmaker(database_url)
     app.state.admin_token = admin_token
-    for module in (admin, pos, basestation, monitoring):
+    app.state.license_key = license_key
+    app.state.session_secret = os.environ.get("EINK_SESSION_SECRET") or sign(admin_token, "beheer-sessies")
+    for module in (admin, pos, basestation, monitoring, manage):
         app.include_router(module.router)
+    beheer.install(app)
 
     @app.get("/health", tags=["monitoring"])
     def health():

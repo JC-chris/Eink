@@ -23,6 +23,7 @@ from . import __version__
 from .agent import Agent
 from .cloud import ClientFactory, Cloud, CloudError
 from .config import Config, hash_password, verify_password
+from .license import LicenseManager, LicenseState
 from .network import EthernetConfig, NetworkBackend, NetworkError, SimulatedNetwork, online
 
 SESSION_COOKIE = "eink_session"
@@ -61,6 +62,7 @@ def parse_euro(text: str) -> int | None:
 
 
 templates.env.filters["euro"] = euro
+templates.env.filters["ts"] = lambda t: time.strftime("%d-%m-%Y %H:%M", time.localtime(t))
 templates.env.filters["euro_input"] = euro_input
 
 
@@ -89,7 +91,7 @@ def _ip_addresses() -> list[str]:
 
 
 def create_webui(config: Config, config_path: Path, agent: Agent, client_factory: ClientFactory,
-                 network: NetworkBackend | None = None) -> FastAPI:
+                 network: NetworkBackend | None = None, license: LicenseManager | None = None) -> FastAPI:
     app = FastAPI(title="Eink basisstation", docs_url=None, redoc_url=None, openapi_url=None)
     network = network or SimulatedNetwork()
 
@@ -127,8 +129,12 @@ def create_webui(config: Config, config_path: Path, agent: Agent, client_factory
     def _login_required(request: Request, exc: LoginRequired):
         return RedirectResponse("/login", status_code=303)
 
+    def license_state() -> LicenseState | None:
+        return license.state() if license is not None else None
+
     def render(request: Request, name: str, **context) -> HTMLResponse:
         context.update(
+            license=license_state(),
             msg=request.query_params.get("msg"),
             err=context.get("err") or request.query_params.get("err"),
             version=__version__,
@@ -197,6 +203,9 @@ def create_webui(config: Config, config_path: Path, agent: Agent, client_factory
         promo_text: str = Form(""),
     ):
         sku = sku.strip()
+        state = license_state()
+        if state is not None and not state.prices_editable:
+            return _redirect("/producten", err=state.text)
         try:
             price_cents = parse_euro(price)
             if price_cents is None:

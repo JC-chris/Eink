@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -12,6 +12,7 @@ class StoreCreate(BaseModel):
     id: str = Field(pattern=r"^[a-z0-9-]{2,64}$", examples=["slagerij-jansen"])
     name: str
     price_source: Literal["pos", "manual"] = "pos"
+    customer_id: str | None = Field(None, description="klant/contract waaronder deze winkel valt")
 
 
 PriceSourceT = Literal["pos", "manual"]
@@ -142,3 +143,62 @@ class AlertOut(BaseModel):
     message: str
     created_at: datetime
     resolved_at: datetime | None
+
+
+# --- Managementsysteem -------------------------------------------------------------------------
+
+
+class CustomerBase(BaseModel):
+    name: str = Field(max_length=200, examples=["Slagerij Jansen B.V."])
+    contact_email: str | None = Field(None, max_length=200)
+    contact_phone: str | None = Field(None, max_length=50)
+    notes: str | None = Field(None, max_length=2000)
+    plan: str = Field("Standaard", max_length=64)
+    monthly_price_cents: int = Field(0, ge=0, examples=[4900])
+
+
+class CustomerCreate(CustomerBase):
+    id: str = Field(pattern=r"^[a-z0-9-]{2,64}$", examples=["jansen"])
+    subscription_status: Literal["trial", "active"] = "active"
+    start_date: date | None = None
+
+
+class CustomerOut(CustomerBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    subscription_status: str
+    start_date: date
+    end_date: date | None
+    cancelled_at: datetime | None
+    suspend_reason: str | None
+    service_active: bool
+    store_ids: list[str]
+
+
+class CancelBody(BaseModel):
+    end_date: date = Field(description="laatste dag waarop de dienst werkt")
+
+
+class SuspendBody(BaseModel):
+    reason: str = Field(min_length=1, max_length=500, examples=["Contract opgezegd, einde looptijd"])
+
+
+class BaseStationStatus(BaseModel):
+    id: str
+    store_id: str
+    customer_id: str | None
+    online: bool
+    last_seen: datetime | None
+    license_valid_until: datetime | None
+    software_version: str | None
+
+
+class AuditOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    at: datetime
+    actor: str
+    action: str
+    customer_id: str | None
+    store_id: str | None
+    details: str | None

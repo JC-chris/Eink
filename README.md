@@ -18,7 +18,7 @@ en op afstand wordt gemonitord.
 | Map | Wat |
 |---|---|
 | [`docs/`](docs/) | Ontwerp: architectuur, hardware, basisstation, radioprotocol, kassa-API, monitoring, certificering, roadmap |
-| [`backend/`](backend/) | Cloud-backend (Python/FastAPI): kassa-API, label-rendering, job-dispatch, monitoring & alerts — **werkend, met tests** |
+| [`backend/`](backend/) | Cloud-backend (Python/FastAPI): kassa-API, label-rendering, job-dispatch, monitoring & alerts, **managementsysteem** (`/beheer`, abonnementen, ondertekende licenties) — **werkend, met tests** |
 | [`basestation/`](basestation/) | Agent + **lokale webinterface** op het basisstation (status, **Ethernet/Wi-Fi**, instellingen, prijzen beheren zonder kassa); inclusief **radio-simulator** zodat alles zonder hardware te testen is |
 | [`firmware/`](firmware/) | Label-firmware: beeldformaat (C-header) en decoder; plan voor Zephyr/nRF Connect SDK |
 | [`hardware/`](hardware/) | Eisen en blokschema's voor label-PCB en basisstation-PCB, eerste BOM-schatting |
@@ -33,6 +33,7 @@ en op afstand wordt gemonitord.
 6. [Monitoring op afstand](docs/06-monitoring.md)
 7. [Certificering & wetgeving](docs/07-certificering-en-wetgeving.md)
 8. [Roadmap, team & kosten](docs/08-roadmap.md)
+9. [Managementsysteem, abonnementen & wekelijkse check-in](docs/09-managementsysteem.md)
 
 ## Snel starten (zonder hardware)
 
@@ -51,8 +52,11 @@ Of als losse services:
 
 ```bash
 # cloud
-EINK_ADMIN_TOKEN=geheim uvicorn eink_cloud.main:app --app-dir backend --reload
-# API-documentatie: http://localhost:8000/docs
+cd backend
+export EINK_ADMIN_TOKEN=geheim EINK_LICENSE_KEY_FILE=./license_key.pem
+python -m eink_cloud.cli create-operator anna --role admin   # account voor het managementsysteem
+uvicorn eink_cloud.main:app --reload
+# API-documentatie: http://localhost:8000/docs · managementsysteem: http://localhost:8000/beheer
 
 # winkel + basisstation aanmaken (prijsbron "manual" = zonder kassa, via webinterface)
 curl -XPOST localhost:8000/v1/admin/stores -H 'Authorization: Bearer geheim' -H 'content-type: application/json' \

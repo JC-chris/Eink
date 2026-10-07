@@ -42,8 +42,13 @@ def main():
     app = create_app("sqlite://", "demo-admin", monitor_interval_s=None)
     admin = TestClient(app, headers={"Authorization": "Bearer demo-admin"})
 
+    step("Klant met abonnement aanmaken (managementsysteem / facturatie)")
+    admin.post("/v1/manage/customers", json={"id": "versmarkt", "name": "Versmarkt B.V.", "plan": "Standaard",
+                                             "monthly_price_cents": 4900}, headers={"X-Actor": "facturatie"})
+
     step("Winkel en basisstation aanmaken (beheer)")
-    store = admin.post("/v1/admin/stores", json={"id": "versmarkt-demo", "name": "Versmarkt Demo"}).json()
+    store = admin.post("/v1/admin/stores", json={"id": "versmarkt-demo", "name": "Versmarkt Demo",
+                                                 "customer_id": "versmarkt"}).json()
     bs = admin.post("/v1/admin/stores/versmarkt-demo/basestations", json={"id": "bs-demo-1"}).json()
     pos = TestClient(app, headers={"Authorization": f"Bearer {store['api_key']}"})
     print(f"winkel-API-sleutel voor de kassa: {store['api_key'][:8]}…")
@@ -84,6 +89,21 @@ def main():
 
     step("Overzicht voor support")
     print(json.dumps(admin.get("/v1/monitoring/overview").json(), indent=2, default=str))
+
+    step("Contract opgezegd en beëindigd: systeem uitschakelen")
+    radio.labels["C0:FF:EE:00:00:03"].reachable = True
+    c = admin.post("/v1/manage/customers/versmarkt/suspend", json={"reason": "contract beëindigd"},
+                   headers={"X-Actor": "facturatie"}).json()
+    print(f"abonnement: {c['subscription_status']}, dienst actief: {c['service_active']}")
+    r = pos.put("/v1/stores/versmarkt-demo/products/1001", json=PRODUCTS[0])
+    print(f"kassa probeert prijs te wijzigen → HTTP {r.status_code}: {r.json()['detail']}")
+    agent._last_heartbeat = float("-inf")
+    print(f"basisstation zet {agent.run_once()} labels op 'Prijs aan de kassa'")
+    from eink_basestation.license import verify
+
+    key = agent.client.get("/v1/basestation/license-key").json()["public_key"]
+    lease = agent.client.post("/v1/basestation/heartbeat", json={"software_version": "demo", "uptime_s": 1}).json()["license"]
+    print(f"licentie van het basisstation: {verify(lease, key)['status']}")
 
 
 if __name__ == "__main__":

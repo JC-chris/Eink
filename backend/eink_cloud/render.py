@@ -94,6 +94,26 @@ def render_image(content: LabelContent, display: DisplayType) -> Image.Image:
     return img
 
 
+def render_notice_image(display: DisplayType, title: str, subtitle: str = "") -> Image.Image:
+    """Neutraal beeld zonder prijs, bv. als de dienst is uitgeschakeld."""
+    w, h = display.width, display.height
+    img = Image.new("RGB", (w, h), WHITE)
+    d = ImageDraw.Draw(img)
+    d.fontmode = "1"
+    pad = max(4, w // 25)
+    f_title = _fit(d, title, w - 2 * pad, int(h * 0.22), bold=True)
+    d.text((w / 2, h * 0.42), title, font=f_title, fill=BLACK, anchor="mm")
+    if subtitle:
+        f_sub = _fit(d, subtitle, w - 2 * pad, int(h * 0.11))
+        d.text((w / 2, h * 0.70), subtitle, font=f_sub, fill=BLACK, anchor="mm")
+    return img
+
+
+def notice_frame(display: DisplayType, title: str, subtitle: str = "") -> Frame:
+    q = quantize(render_notice_image(display, title, subtitle), display)
+    return build_frame(q.tobytes(), display.width, display.height, display.bits_per_pixel, display.palette_id)
+
+
 def quantize(img: Image.Image, display: DisplayType) -> Image.Image:
     """Zet om naar exact het palet van het display (geen dithering: tekst blijft scherp)."""
     pal_img = Image.new("P", (1, 1))

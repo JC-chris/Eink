@@ -1,0 +1,42 @@
+{% extends "beheer/base.html" %}
+{% from "beheer/_macros.html" import sub_badge %}
+{% block title %}Klanten{% endblock %}
+{% block content %}
+<h1>Klanten</h1>
+<div class="card scroll">
+  <form method="get" class="inline" style="margin-bottom:12px"><input name="q" value="{{ q }}" placeholder="Zoek op naam of ID" style="width:260px"><button class="secondary">Zoeken</button></form>
+  <table>
+    <tr><th>Klant</th><th>Abonnement</th><th>Pakket</th><th class="num">Per maand</th><th>Sinds</th><th>Einde</th><th class="num">Winkels</th></tr>
+    {% for c in customers %}
+    <tr>
+      <td><a href="/beheer/klanten/{{ c.id }}"><strong>{{ c.name }}</strong></a><br><span class="muted">{{ c.id }}</span></td>
+      <td>{{ sub_badge(c.subscription_status, c.service_active) }}</td>
+      <td>{{ c.plan }}</td><td class="num">{{ c.monthly_price_cents | euro }}</td>
+      <td>{{ c.start_date | d }}</td><td>{{ c.end_date | d if c.end_date else '' }}</td>
+      <td class="num">{{ c.store_ids | length }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" class="muted">Geen klanten gevonden.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% if op.role == 'admin' %}
+<div class="card">
+  <h2>Nieuwe klant</h2>
+  <form method="post" action="/beheer/klanten">
+    <div class="row">
+      <div><label>Klant-ID (kleine letters, cijfers, -)</label><input name="id" required pattern="[a-z0-9-]{2,64}" placeholder="slagerij-jansen"></div>
+      <div style="grid-column: span 2"><label>Naam</label><input name="name" required placeholder="Slagerij Jansen B.V."></div>
+    </div>
+    <div class="row">
+      <div><label>E-mail contactpersoon</label><input name="contact_email" type="email"></div>
+      <div><label>Telefoon</label><input name="contact_phone"></div>
+      <div><label>Pakket</label><input name="plan" value="Standaard"></div>
+      <div><label>Prijs per maand (€)</label><input name="monthly_price" inputmode="decimal" placeholder="49,00" required></div>
+      <div><label>Start als</label><select name="subscription_status"><option value="active">Actief</option><option value="trial">Proefperiode</option></select></div>
+    </div>
+    <button>Klant aanmaken</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

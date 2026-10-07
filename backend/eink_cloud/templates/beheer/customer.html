@@ -1,0 +1,110 @@
+{% extends "beheer/base.html" %}
+{% from "beheer/_macros.html" import sub_badge %}
+{% block title %}{{ c.name }}{% endblock %}
+{% block content %}
+<h1>{{ c.name }} {{ sub_badge(c.subscription_status, c.service_active) }}</h1>
+
+{% if not c.service_active %}
+<div class="flash err">Het systeem van deze klant is <strong>uitgeschakeld</strong>{% if c.suspend_reason %}: {{ c.suspend_reason }}{% elif c.end_date %} (opzegging verlopen op {{ c.end_date | d }}){% endif %}.
+  Prijsupdates worden geweigerd en alle labels tonen "Prijs aan de kassa".</div>
+{% elif c.subscription_status == 'cancelled' %}
+<div class="flash err" style="background:#fff3dc;color:#7a4d00">Opgezegd op {{ c.cancelled_at | dt }}. De dienst werkt tot en met <strong>{{ c.end_date | d }}</strong> en schakelt daarna automatisch uit.</div>
+{% endif %}
+
+<div class="cols">
+  <div class="card">
+    <h2>Gegevens en abonnement</h2>
+    <form method="post" action="/beheer/klanten/{{ c.id }}">
+      <fieldset style="border:0;padding:0;margin:0" {{ 'disabled' if op.role != 'admin' }}>
+      <div class="row">
+        <div style="grid-column: span 2"><label>Naam</label><input name="name" value="{{ c.name }}" required></div>
+      </div>
+      <div class="row">
+        <div><label>E-mail</label><input name="contact_email" type="email" value="{{ c.contact_email or '' }}"></div>
+        <div><label>Telefoon</label><input name="contact_phone" value="{{ c.contact_phone or '' }}"></div>
+      </div>
+      <div class="row">
+        <div><label>Pakket</label><input name="plan" value="{{ c.plan }}" required></div>
+        <div><label>Prijs per maand (€)</label><input name="monthly_price" value="{{ '%d,%02d' % (c.monthly_price_cents // 100, c.monthly_price_cents % 100) }}" required></div>
+      </div>
+      <p><label>Notities</label><textarea name="notes" rows="3">{{ c.notes or '' }}</textarea></p>
+      <p class="muted">Klant-ID <code>{{ c.id }}</code> · klant sinds {{ c.start_date | d }}</p>
+      {% if op.role == 'admin' %}<button>Opslaan</button>{% endif %}
+      </fieldset>
+    </form>
+  </div>
+
+  <div>
+  {% if op.role == 'admin' %}
+    <div class="card danger-zone">
+      <h2>Contract</h2>
+      {% if c.subscription_status in ('active', 'trial') %}
+        <form method="post" action="/beheer/klanten/{{ c.id }}/opzeggen" class="inline" style="margin-bottom:16px">
+          <label style="width:100%">Opzegging registreren — laatste dag van de dienst:</label>
+          <input type="date" name="end_date" required min="{{ today.isoformat() }}">
+          <button class="secondary">Opzegging registreren</button>
+        </form>
+      {% elif c.subscription_status == 'cancelled' and c.service_active %}
+        <form method="post" action="/beheer/klanten/{{ c.id }}/opzegging-intrekken" style="margin-bottom:16px">
+          <button class="secondary">Opzegging intrekken</button>
+        </form>
+      {% endif %}
+      {% if c.service_active %}
+        <form method="post" action="/beheer/klanten/{{ c.id }}/uitschakelen">
+          <p class="muted"><strong>Direct uitschakelen</strong> (bv. einde contract of wanbetaling). Prijsupdates worden geweigerd
+            en alle labels van alle winkels krijgen direct "Prijs aan de kassa". Basisstations stoppen bij hun volgende check-in.</p>
+          <p><label>Reden (komt in het auditlog)</label><input name="reason" required maxlength="500"></p>
+          <p><label>Typ ter bevestiging de klant-ID: <code>{{ c.id }}</code></label><input name="confirm" required autocomplete="off"></p>
+          <button class="danger">Systeem uitschakelen</button>
+        </form>
+      {% else %}
+        <form method="post" action="/beheer/klanten/{{ c.id }}/heractiveren">
+          <p class="muted">Heractiveren zet het abonnement op actief; labels krijgen direct weer hun prijzen.</p>
+          <button>Heractiveren</button>
+        </form>
+      {% endif %}
+    </div>
+  {% endif %}
+  </div>
+</div>
+
+<div class="card scroll">
+  <h2>Winkels</h2>
+  <table>
+    <tr><th>Winkel</th><th>Status</th><th class="num">Labels online</th><th class="num">Niet actueel</th><th class="num">Batterij laag</th><th>Basisstations</th><th class="num">Storingen</th></tr>
+    {% for s in stores %}
+    <tr>
+      <td><a href="/beheer/winkels/{{ s.store_id }}"><strong>{{ s.name }}</strong></a><br><span class="muted">{{ s.store_id }}</span></td>
+      <td>{% if c.service_active %}<span class="badge ok">in dienst</span>{% else %}<span class="badge err">uitgeschakeld</span>{% endif %}</td>
+      <td class="num">{{ s.labels_online }} / {{ s.labels_total }}</td><td class="num">{{ s.labels_out_of_sync }}</td><td class="num">{{ s.labels_battery_low }}</td>
+      <td>{% for b in s.basestations %}<span class="badge {{ 'ok' if b.online else 'err' }}">{{ b.id }}</span> {% else %}<span class="muted">geen</span>{% endfor %}</td>
+      <td class="num">{{ s.open_alerts }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" class="muted">Nog geen winkels.</td></tr>
+    {% endfor %}
+  </table>
+  {% if op.role == 'admin' %}
+  <form method="post" action="/beheer/klanten/{{ c.id }}/winkels" style="margin-top:14px">
+    <div class="row">
+      <div><label>Winkel-ID</label><input name="store_id" required pattern="[a-z0-9-]{2,64}" placeholder="{{ c.id }}-centrum"></div>
+      <div><label>Naam winkel</label><input name="name" required></div>
+      <div><label>Prijzen via</label><select name="price_source"><option value="pos">Kassa</option><option value="manual">Webinterface basisstation</option></select></div>
+    </div>
+    <button class="secondary">Winkel toevoegen</button>
+  </form>
+  {% endif %}
+</div>
+
+<div class="card scroll">
+  <h2>Auditlog</h2>
+  <table>
+    <tr><th>Wanneer</th><th>Wie</th><th>Actie</th><th>Winkel</th><th>Details</th></tr>
+    {% for e in log %}
+    <tr><td class="muted">{{ e.at | dt }}</td><td>{{ e.actor }}</td><td><code>{{ e.action }}</code></td><td>{{ e.store_id or '' }}</td><td>{{ e.details or '' }}</td></tr>
+    {% else %}
+    <tr><td colspan="5" class="muted">Nog geen acties.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,60 @@
+{% extends "beheer/base.html" %}
+{% from "beheer/_macros.html" import severity, license_cell %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<h1>Dashboard</h1>
+<div class="kpis">
+  <div class="kpi"><div class="v">{{ d.customers_total }}</div><div class="k">Klanten</div></div>
+  <div class="kpi good"><div class="v">{{ d.customers.active + d.customers.trial }}</div><div class="k">Actief (waarvan {{ d.customers.trial }} proef)</div></div>
+  <div class="kpi warn"><div class="v">{{ d.customers.cancelled }}</div><div class="k">Opgezegd, loopt nog</div></div>
+  <div class="kpi {{ 'bad' if d.customers.suspended }}"><div class="v">{{ d.customers.suspended }}</div><div class="k">Uitgeschakeld</div></div>
+  <div class="kpi"><div class="v">{{ d.mrr_cents | euro }}</div><div class="k">Maandomzet (MRR)</div></div>
+</div>
+<div class="kpis">
+  <div class="kpi {{ 'bad' if d.basestations_online < d.basestations_total }}"><div class="v">{{ d.basestations_online }} / {{ d.basestations_total }}</div><div class="k">Basisstations online</div></div>
+  <div class="kpi {{ 'bad' if d.basestations_license_expired }}"><div class="v">{{ d.basestations_license_expired | length }}</div><div class="k">Wekelijkse check-in gemist</div></div>
+  <div class="kpi"><div class="v">{{ d.labels_online }} / {{ d.labels_total }}</div><div class="k">Labels online</div></div>
+  <div class="kpi {{ 'warn' if d.labels_battery_low }}"><div class="v">{{ d.labels_battery_low }}</div><div class="k">Batterij bijna leeg</div></div>
+  <div class="kpi {{ 'warn' if d.labels_out_of_sync }}"><div class="v">{{ d.labels_out_of_sync }}</div><div class="k">Labels niet actueel</div></div>
+  <div class="kpi {{ 'bad' if d.alerts_critical }}"><div class="v">{{ d.alerts | length }}</div><div class="k">Open storingen ({{ d.alerts_critical }} kritiek)</div></div>
+</div>
+
+<div class="cols">
+  <div class="card scroll">
+    <h2>Open storingen</h2>
+    <table>
+      <tr><th>Ernst</th><th>Winkel</th><th>Melding</th><th>Sinds</th></tr>
+      {% for a in d.alerts[:15] %}
+      <tr><td>{{ severity(a.severity) }}</td><td><a href="/beheer/winkels/{{ a.store_id }}">{{ a.store_id }}</a></td><td>{{ a.message }}</td><td class="muted">{{ a.created_at | ago }}</td></tr>
+      {% else %}
+      <tr><td colspan="4" class="muted">Geen open storingen.</td></tr>
+      {% endfor %}
+    </table>
+    {% if d.alerts | length > 15 %}<p><a href="/beheer/storingen">Alle {{ d.alerts | length }} storingen</a></p>{% endif %}
+  </div>
+  <div>
+    <div class="card scroll">
+      <h2>Opzeggingen die binnenkort ingaan</h2>
+      <table>
+        <tr><th>Klant</th><th>Laatste dag</th><th class="num">Per maand</th></tr>
+        {% for c in d.ending_soon %}
+        <tr><td><a href="/beheer/klanten/{{ c.id }}">{{ c.name }}</a></td><td>{{ c.end_date | d }}</td><td class="num">{{ c.monthly_price_cents | euro }}</td></tr>
+        {% else %}
+        <tr><td colspan="3" class="muted">Geen lopende opzeggingen.</td></tr>
+        {% endfor %}
+      </table>
+    </div>
+    <div class="card scroll">
+      <h2>Wekelijkse check-in gemist</h2>
+      <table>
+        <tr><th>Basisstation</th><th>Winkel</th><th>Licentie</th></tr>
+        {% for s in d.basestations_license_expired %}
+        <tr><td>{{ s.id }}</td><td><a href="/beheer/winkels/{{ s.store_id }}">{{ s.store_id }}</a></td><td>{{ license_cell(s.license_valid_until) }}</td></tr>
+        {% else %}
+        <tr><td colspan="3" class="muted">Alle basisstations hebben deze week verbinding gemaakt.</td></tr>
+        {% endfor %}
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -48,6 +48,9 @@
     <tr><td class="muted">Hostnaam</td><td>{{ hostname }}</td></tr>
     <tr><td class="muted">IP-adres(sen)</td><td>{{ ips | join(', ') or 'onbekend' }}</td></tr>
     <tr><td class="muted">Software</td><td>{{ version }}</td></tr>
+    {% if license %}
+    <tr><td class="muted">Licentie</td><td>{{ license.text }}{% if license.valid_until %} — geldig tot {{ license.valid_until | ts }}{% endif %}</td></tr>
+    {% endif %}
     <tr><td class="muted">In bedrijf</td><td>{{ uptime_s // 3600 }} u {{ (uptime_s % 3600) // 60 }} m</td></tr>
   </table>
 </div>

@@ -6,7 +6,8 @@ from sqlalchemy.orm import Session
 from ..auth import require_admin
 from ..db import get_session
 from ..displays import DISPLAY_TYPES
-from ..models import BaseStation, Store
+from ..models import BaseStation, Customer, Store
+from ..subscriptions import apply_service_states, audit
 from ..schemas import BaseStationCreate, BaseStationCreated, StoreCreate, StoreCreated, StoreInfo, StoreSettings
 
 router = APIRouter(prefix="/v1/admin", tags=["beheer"], dependencies=[Depends(require_admin)])
@@ -16,8 +17,14 @@ router = APIRouter(prefix="/v1/admin", tags=["beheer"], dependencies=[Depends(re
 def create_store(body: StoreCreate, session: Session = Depends(get_session)):
     if session.get(Store, body.id):
         raise HTTPException(409, "winkel bestaat al")
-    store = Store(id=body.id, name=body.name, api_key=secrets.token_urlsafe(32), price_source=body.price_source)
+    if body.customer_id and session.get(Customer, body.customer_id) is None:
+        raise HTTPException(404, "klant onbekend")
+    store = Store(id=body.id, name=body.name, api_key=secrets.token_urlsafe(32), price_source=body.price_source,
+                  customer_id=body.customer_id)
     session.add(store)
+    session.flush()
+    audit(session, "api:admin", "store_created", body.customer_id, store.id)
+    apply_service_states(session, actor="api:admin")
     session.commit()
     return StoreCreated(id=store.id, name=store.name, api_key=store.api_key, price_source=store.price_source)
 

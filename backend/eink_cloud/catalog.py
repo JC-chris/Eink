@@ -85,6 +85,8 @@ def link_label(session: Session, store: Store, label_id: str, sku: str | None) -
 
 
 def refresh_label(session: Session, store: Store, label_id: str) -> Label:
+    if store.service_state == "suspended":
+        raise HTTPException(403, "het abonnement van deze winkel is niet actief")
     label = get_label(session, store, label_id)
     label.expected_crc = None
     schedule_label_update(session, label)

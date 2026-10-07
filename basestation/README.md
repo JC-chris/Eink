@@ -22,4 +22,5 @@ python -m eink_basestation.agent --config ./config.json --server http://localhos
 | `cloud.py` | Client voor de cloud-API (met basisstation-token) |
 | `config.py` | Instellingen + wachtwoordhashing |
 | `network.py` | Ethernet, Wi-Fi en installatie-hotspot (NetworkManager of simulatie) + bewaking |
+| `license.py` | Controle ondertekende licentie (wekelijkse check-in, uitschakeling) |
 | `radio.py` | `RadioBackend`, `SimulatedRadio`, `NordicEslRadio` (stub) |

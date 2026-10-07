@@ -70,6 +70,15 @@
 </header>
 {% endblock %}
 <main>
+  {% if license and license.status not in ('valid',) %}
+  <div class="flash err" {% if license.status in ('expiring', 'missing') %}style="background:#fff3dc;color:#7a4d00"{% endif %}>
+    <strong>{% if license.status == 'suspended' %}Systeem uitgeschakeld{% elif license.status == 'expired' %}Systeem gestopt: wekelijkse verbinding gemist{% elif license.status == 'expiring' %}Verbinding met managementsysteem vereist{% elif license.status == 'missing' %}Nog niet geactiveerd{% else %}Licentieprobleem{% endif %}.</strong>
+    {{ license.text }}
+    {% if license.support and license.status != 'missing' %}Contact: {{ license.support }}.{% endif %}
+  </div>
+  {% elif license and license.message %}
+  <div class="flash err" style="background:#fff3dc;color:#7a4d00">{{ license.message }}</div>
+  {% endif %}
   {% if msg %}<div class="flash ok">{{ msg }}</div>{% endif %}
   {% if err %}<div class="flash err">{{ err }}</div>{% endif %}
   {% block content %}{% endblock %}

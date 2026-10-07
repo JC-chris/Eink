@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Beheer{% endblock %} · Eink management</title>
+<style>
+  :root { --bg:#f4f4f1; --card:#fff; --text:#1d1d1b; --muted:#6b6b66; --line:#e2e2dc; --accent:#b3261e; --ok:#1e7a3c; --warn:#a86a00; --nav:#16233a; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--text); }
+  header { background:var(--nav); color:#fff; padding:0 16px; display:flex; flex-wrap:wrap; align-items:center; gap:4px 16px; }
+  header .brand { font-weight:700; padding:12px 0; margin-right:8px; letter-spacing:.02em; }
+  header nav { display:flex; gap:2px; flex:1; }
+  header nav a { color:#c8d0dd; text-decoration:none; padding:12px 10px; border-bottom:3px solid transparent; }
+  header nav a.active, header nav a:hover { color:#fff; border-bottom-color:#e8b931; }
+  header .who { color:#c8d0dd; font-size:13px; }
+  header form { margin:0; }
+  header button { background:none; border:1px solid #4a5a75; color:#dde3ec; padding:4px 10px; }
+  main { max-width:1280px; margin:0 auto; padding:16px; }
+  h1 { font-size:22px; margin:8px 0 16px; display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+  h2 { font-size:16px; margin:0 0 12px; }
+  a { color:#1a4fa0; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:16px; margin-bottom:16px; }
+  .cols { display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:16px; align-items:start; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px; margin-bottom:16px; }
+  .kpi { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px 14px; }
+  .kpi .v { font-size:24px; font-weight:700; font-variant-numeric:tabular-nums; }
+  .kpi .k { color:var(--muted); font-size:12px; }
+  .kpi.bad .v { color:var(--accent); } .kpi.warn .v { color:var(--warn); } .kpi.good .v { color:var(--ok); }
+  .flash { padding:10px 14px; border-radius:6px; margin-bottom:16px; }
+  .flash.ok { background:#e5f4ea; color:var(--ok); } .flash.err { background:#fbe9e7; color:var(--accent); }
+  .secret { background:#fff8e1; border:1px solid #e8b931; padding:14px; border-radius:8px; margin-bottom:16px; }
+  .secret code { font-size:15px; user-select:all; display:inline-block; margin-top:6px; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:12px; font-weight:600; background:#eee; white-space:nowrap; }
+  .badge.ok { background:#e5f4ea; color:var(--ok); } .badge.err { background:#fbe9e7; color:var(--accent); } .badge.warn { background:#fff3dc; color:var(--warn); } .badge.info { background:#e7eefb; color:#1a4fa0; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { text-align:left; padding:7px 6px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  th { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
+  .scroll { overflow-x:auto; }
+  label { display:block; font-size:12px; color:var(--muted); margin-bottom:4px; }
+  input, select, textarea, button { font:inherit; padding:7px 10px; border:1px solid #c9c9c2; border-radius:6px; background:#fff; color:var(--text); }
+  input, select, textarea { width:100%; }
+  button { cursor:pointer; background:var(--nav); color:#fff; border-color:var(--nav); }
+  button.secondary { background:#fff; color:var(--text); border-color:#c9c9c2; }
+  button.danger { background:var(--accent); border-color:var(--accent); }
+  .row { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin-bottom:10px; }
+  .inline { display:flex; gap:6px; align-items:center; margin:0; flex-wrap:wrap; }
+  .inline input { width:auto; }
+  .muted { color:var(--muted); }
+  .danger-zone { border-color:#f0c4bf; }
+  .danger-zone h2 { color:var(--accent); }
+  code { background:#f0f0ea; padding:1px 5px; border-radius:4px; }
+  .checkbox { display:flex; gap:8px; align-items:flex-start; color:var(--text); font-size:13px; }
+  .checkbox input { width:auto; margin-top:3px; }
+  @media (max-width:700px) { header nav { order:3; flex-basis:100%; overflow-x:auto; white-space:nowrap; } header .brand { flex:1; } }
+</style>
+</head>
+<body>
+{% block header %}
+<header>
+  <div class="brand">Eink management</div>
+  <nav>
+    <a href="/beheer" class="{{ 'active' if path == '/beheer' }}">Dashboard</a>
+    <a href="/beheer/klanten" class="{{ 'active' if path.startswith('/beheer/klanten') }}">Klanten</a>
+    <a href="/beheer/basisstations" class="{{ 'active' if path.startswith('/beheer/basisstations') }}">Basisstations</a>
+    <a href="/beheer/storingen" class="{{ 'active' if path.startswith('/beheer/storingen') }}">Storingen</a>
+    <a href="/beheer/audit" class="{{ 'active' if path.startswith('/beheer/audit') }}">Auditlog</a>
+    {% if op.role == 'admin' %}<a href="/beheer/medewerkers" class="{{ 'active' if path.startswith('/beheer/medewerkers') }}">Medewerkers</a>{% endif %}
+  </nav>
+  <span class="who">{{ op.username }} · {{ op.role }}</span>
+  <form method="post" action="/beheer/logout"><button>Uitloggen</button></form>
+</header>
+{% endblock %}
+<main>
+  {% if msg %}<div class="flash ok">{{ msg }}</div>{% endif %}
+  {% if err %}<div class="flash err">{{ err }}</div>{% endif %}
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>

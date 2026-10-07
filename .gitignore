@@ -5,3 +5,5 @@ __pycache__/
 demo-output/
 .venv/
 config.json
+*.pem
+license.json

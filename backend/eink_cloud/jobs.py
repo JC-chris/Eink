@@ -4,7 +4,7 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from .displays import DISPLAY_TYPES
-from .models import BaseStation, JobStatus, Label, Product, UpdateJob, utcnow
+from .models import BaseStation, JobStatus, Label, Product, ServiceState, Store, UpdateJob, utcnow
 from .render import LabelContent, render_frame
 
 MAX_ATTEMPTS = 3
@@ -26,6 +26,9 @@ def schedule_label_update(session: Session, label: Label) -> UpdateJob | None:
     """Rendert het label opnieuw en plant een job, tenzij het beeld al klopt."""
     if label.product_sku is None:
         return None
+    store = session.get(Store, label.store_id)
+    if store is not None and store.service_state == ServiceState.SUSPENDED:
+        return None  # dienst uitgeschakeld: label houdt het neutrale beeld
     product = session.scalar(
         select(Product).where(Product.store_id == label.store_id, Product.sku == label.product_sku)
     )
@@ -52,7 +55,7 @@ def schedule_product_update(session: Session, product: Product) -> int:
 
 
 def claim_jobs(session: Session, bs: BaseStation, limit: int) -> list[UpdateJob]:
-    jobs = session.scalars(
+    query = (
         select(UpdateJob)
         .join(Label, Label.id == UpdateJob.label_id)
         .where(
@@ -62,7 +65,11 @@ def claim_jobs(session: Session, bs: BaseStation, limit: int) -> list[UpdateJob]
         )
         .order_by(UpdateJob.id)
         .limit(limit)
-    ).all()
+    )
+    store = session.get(Store, bs.store_id)
+    if store.service_state == ServiceState.SUSPENDED:
+        query = query.where(UpdateJob.kind == "service")  # alleen nog de "buiten dienst"-beelden
+    jobs = session.scalars(query).all()
     now = utcnow()
     for job in jobs:
         job.status = JobStatus.SENT

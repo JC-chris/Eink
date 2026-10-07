@@ -3,7 +3,7 @@
 {% block content %}
 <h1>Producten {% include "_price_source.html" %}</h1>
 {% if store %}
-  {% set manual = store.price_source == 'manual' %}
+  {% set manual = store.price_source == 'manual' and (not license or license.prices_editable) %}
   {% if manual %}
   <div class="card">
     <h2>{{ 'Product bewerken' if editing else 'Product toevoegen' }}</h2>
@@ -34,6 +34,8 @@
       {% if editing %}<a href="/producten" style="margin-left:8px">Annuleren</a>{% endif %}
     </form>
   </div>
+  {% elif license and not license.prices_editable %}
+  <div class="flash err">Prijzen beheren is niet beschikbaar zolang het systeem niet actief is.</div>
   {% else %}
   <div class="flash err" style="background:#fff3dc;color:#7a4d00">
     Prijzen komen uit de kassa en zijn hier alleen te bekijken. Geen kassakoppeling? Schakel om bij <a href="/instellingen">Instellingen</a>.

@@ -6,15 +6,17 @@ token van het basisstation. Zo hoeft de winkel geen kassakoppeling te hebben.
 
 import base64
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
 from .. import catalog
+from ..licensing import issue_lease, public_key_b64
+from ..subscriptions import lease_message, require_service
 from ..auth import require_basestation
 from ..db import get_session
 from ..displays import DISPLAY_TYPES
 from ..jobs import claim_jobs, record_result
-from ..models import BaseStation, Label, PriceSource, Store, UpdateJob, utcnow
+from ..models import BaseStation, Customer, Label, PriceSource, Store, UpdateJob, utcnow
 from ..schemas import (
     Heartbeat, JobOut, JobResult, LabelCreate, LabelLink, LabelOut, LabelTelemetry, ProductIn, ProductOut,
     ProductUpdateResult, StoreInfo, StoreSettings,
@@ -35,16 +37,28 @@ def apply_telemetry(session: Session, bs: BaseStation, t: LabelTelemetry) -> Non
             setattr(label, field, value)
 
 
+@router.get("/license-key")
+def license_key(request: Request):
+    """Publieke sleutel voor licentiecontrole. In productie staat deze al in de fabrieksconfig."""
+    return {"algorithm": "Ed25519", "public_key": public_key_b64(request.app.state.license_key)}
+
+
 @router.post("/heartbeat")
-def heartbeat(body: Heartbeat, bs: BaseStation = Depends(require_basestation), session: Session = Depends(get_session)):
-    bs.last_seen = utcnow()
+def heartbeat(body: Heartbeat, request: Request, bs: BaseStation = Depends(require_basestation),
+              session: Session = Depends(get_session)):
+    """Check-in. Het antwoord bevat een ondertekende licentie die 7 dagen geldig is."""
+    now = utcnow()
+    bs.last_seen = now
     bs.software_version = body.software_version
     bs.uptime_s = body.uptime_s
     bs.cpu_temp_c = body.cpu_temp_c
     for t in body.labels_seen:
         apply_telemetry(session, bs, t)
+    store = session.get(Store, bs.store_id)
+    customer = session.get(Customer, store.customer_id) if store.customer_id else None
+    lease = issue_lease(request.app.state.license_key, bs, store, now, lease_message(customer, store))
     session.commit()
-    return {"ok": True}
+    return {"ok": True, "license": lease}
 
 
 @router.get("/jobs", response_model=list[JobOut])
@@ -98,6 +112,7 @@ def list_products(store: Store = Depends(station_store), session: Session = Depe
 
 @router.put("/store/products/{sku}", response_model=ProductUpdateResult)
 def upsert_product(sku: str, body: ProductIn, store: Store = Depends(station_store), session: Session = Depends(get_session)):
+    require_service(session, store)
     catalog.require_price_source(store, PriceSource.MANUAL)
     result = catalog.upsert_product(session, store, sku, body)
     session.commit()

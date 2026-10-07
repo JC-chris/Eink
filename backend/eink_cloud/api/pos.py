@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
 from .. import catalog
+from ..subscriptions import require_service
 from ..auth import require_store
 from ..db import get_session
 from ..models import PriceSource, Store
@@ -19,12 +20,13 @@ def get_store(store: Store = Depends(require_store)):
     return store
 
 
-@router.put("/products/{sku}", response_model=ProductUpdateResult, responses={409: {"description": "winkel staat op handmatig beheer"}})
+@router.put("/products/{sku}", response_model=ProductUpdateResult, responses={403: {"description": "abonnement niet actief"}, 409: {"description": "winkel staat op handmatig beheer"}})
 def upsert_product(sku: str, body: ProductIn, store: Store = Depends(require_store), session: Session = Depends(get_session)):
     """Product aanmaken of prijs bijwerken. Gekoppelde labels worden automatisch ververst.
 
     Geeft 409 als de winkel is omgeschakeld naar beheer via de webinterface van het basisstation.
     """
+    require_service(session, store)
     catalog.require_price_source(store, PriceSource.POS)
     result = catalog.upsert_product(session, store, sku, body)
     session.commit()
@@ -33,6 +35,7 @@ def upsert_product(sku: str, body: ProductIn, store: Store = Depends(require_sto
 
 @router.post("/products:batch", response_model=list[ProductUpdateResult])
 def upsert_products(body: list[ProductBatchItem], store: Store = Depends(require_store), session: Session = Depends(get_session)):
+    require_service(session, store)
     catalog.require_price_source(store, PriceSource.POS)
     results = [catalog.upsert_product(session, store, item.sku, item) for item in body]
     session.commit()

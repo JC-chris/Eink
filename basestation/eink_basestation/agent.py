@@ -13,6 +13,7 @@ import httpx
 
 from . import __version__
 from .config import DEFAULT_PATH, Config
+from .license import LicenseManager
 from .radio import LabelStatus, NordicEslRadio, RadioBackend, SimulatedRadio
 
 log = logging.getLogger("eink_basestation")
@@ -39,9 +40,11 @@ class AgentStatus:
 
 
 class Agent:
-    def __init__(self, client: httpx.Client | None, radio: RadioBackend, heartbeat_interval_s: float = 30):
+    def __init__(self, client: httpx.Client | None, radio: RadioBackend, heartbeat_interval_s: float = 30,
+                 license: LicenseManager | None = None):
         self.client = client
         self.radio = radio
+        self.license = license
         self.heartbeat_interval_s = heartbeat_interval_s
         self.started = time.monotonic()
         self.status = AgentStatus()
@@ -74,7 +77,14 @@ class Agent:
             "labels_seen": [asdict(s) for s in seen],
         }
         self.status.labels_seen = list(seen)
-        client.post("/v1/basestation/heartbeat", json=body).raise_for_status()
+        if self.license is not None and self.license.needs_public_key:
+            resp = client.get("/v1/basestation/license-key")
+            resp.raise_for_status()
+            self.license.pin_public_key(resp.json()["public_key"])
+        resp = client.post("/v1/basestation/heartbeat", json=body)
+        resp.raise_for_status()
+        if self.license is not None:
+            self.license.update(resp.json().get("license"))
         self._last_heartbeat = time.monotonic()
         self._contact_ok()
 
@@ -108,6 +118,12 @@ class Agent:
             return 0
         if time.monotonic() - self._last_heartbeat >= self.heartbeat_interval_s:
             self.heartbeat()
+        if self.license is not None:
+            state = self.license.state()
+            if not state.operational:
+                # Zonder geldige licentie geen radioverkeer: wel blijven inchecken om er een te krijgen.
+                self.status.last_error = state.text
+                return 0
         return self.process_jobs()
 
     def run_forever(self, poll_interval_s: float = 2) -> None:
@@ -163,7 +179,8 @@ def main() -> None:
             radio.add_label(label_id)
     else:
         radio = NordicEslRadio(args.device)
-    agent = Agent(default_client_factory(config) if config.token else None, radio)
+    license = LicenseManager(config, args.config)
+    agent = Agent(default_client_factory(config) if config.token else None, radio, license=license)
     threading.Thread(target=agent.run_forever, name="agent", daemon=True).start()
 
     if args.network == "simulated" or (args.network == "auto" and args.simulate is not None):
@@ -177,7 +194,7 @@ def main() -> None:
     start_watchdog(NetworkWatchdog(network, config.hotspot_ssid, config.hotspot_password,
                                    enabled=lambda: config.hotspot_enabled))
 
-    app = create_webui(config, args.config, agent, default_client_factory, network)
+    app = create_webui(config, args.config, agent, default_client_factory, network, license)
     uvicorn.run(app, host="0.0.0.0", port=config.web_port, log_level="warning")
 
 

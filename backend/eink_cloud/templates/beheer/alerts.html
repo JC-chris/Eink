@@ -1,0 +1,28 @@
+{% extends "beheer/base.html" %}
+{% from "beheer/_macros.html" import severity %}
+{% block title %}Storingen{% endblock %}
+{% block content %}
+<h1>Storingen</h1>
+<div class="card scroll">
+  <h2>Open ({{ open_alerts | length }})</h2>
+  <table>
+    <tr><th>Ernst</th><th>Soort</th><th>Winkel</th><th>Melding</th><th>Sinds</th></tr>
+    {% for a in open_alerts %}
+    <tr><td>{{ severity(a.severity) }}</td><td><code>{{ a.kind }}</code></td><td><a href="/beheer/winkels/{{ a.store_id }}">{{ a.store_id }}</a></td><td>{{ a.message }}</td><td class="muted">{{ a.created_at | ago }}</td></tr>
+    {% else %}
+    <tr><td colspan="5" class="muted">Geen open storingen.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+<div class="card scroll">
+  <h2>Recent opgelost</h2>
+  <table>
+    <tr><th>Soort</th><th>Winkel</th><th>Melding</th><th>Opgelost</th></tr>
+    {% for a in resolved %}
+    <tr><td><code>{{ a.kind }}</code></td><td>{{ a.store_id }}</td><td>{{ a.message }}</td><td class="muted">{{ a.resolved_at | dt }}</td></tr>
+    {% else %}
+    <tr><td colspan="4" class="muted">—</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

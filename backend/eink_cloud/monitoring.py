@@ -7,11 +7,12 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .jobs import retry
-from .models import Alert, BaseStation, JobStatus, Label, Store, UpdateJob, utcnow
+from .models import Alert, BaseStation, JobStatus, Label, ServiceState, Store, UpdateJob, utcnow
 
 BASESTATION_OFFLINE_AFTER = timedelta(minutes=5)
 LABEL_OFFLINE_AFTER = timedelta(hours=6)
 JOB_TIMEOUT = timedelta(minutes=10)
+LICENSE_WARNING = timedelta(days=2)  # waarschuwen als de wekelijkse check-in dreigt te verlopen
 BATTERY_LOW_MV = 2400
 
 
@@ -36,11 +37,26 @@ def requeue_stale_jobs(session: Session, now: datetime) -> int:
 
 def find_problems(session: Session, now: datetime) -> list[Problem]:
     problems: list[Problem] = []
+    # Uitgeschakelde winkels geven geen storingsmeldingen: daar is uitval verwacht.
+    suspended = set(session.scalars(select(Store.id).where(Store.service_state == ServiceState.SUSPENDED)))
     for bs in session.scalars(select(BaseStation)):
+        if bs.store_id in suspended:
+            continue
         if bs.last_seen is None or bs.last_seen < now - BASESTATION_OFFLINE_AFTER:
             problems.append(Problem(bs.store_id, "basestation_offline", bs.id, "critical",
                                     f"Basisstation {bs.id} geeft geen heartbeat meer (laatst: {bs.last_seen})"))
+        if bs.license_valid_until is not None:
+            if bs.license_valid_until < now:
+                problems.append(Problem(bs.store_id, "license_expired", bs.id, "critical",
+                                        f"Basisstation {bs.id}: wekelijkse check-in gemist, licentie verlopen op "
+                                        f"{bs.license_valid_until:%d-%m-%Y %H:%M} — systeem staat stil"))
+            elif bs.license_valid_until < now + LICENSE_WARNING:
+                problems.append(Problem(bs.store_id, "license_expiring", bs.id, "warning",
+                                        f"Basisstation {bs.id}: licentie verloopt op {bs.license_valid_until:%d-%m-%Y %H:%M} "
+                                        "als het geen verbinding maakt"))
     for label in session.scalars(select(Label)):
+        if label.store_id in suspended:
+            continue
         if label.last_seen is not None and label.last_seen < now - LABEL_OFFLINE_AFTER:
             problems.append(Problem(label.store_id, "label_offline", label.id, "warning",
                                     f"Label {label.id} niet gehoord sinds {label.last_seen}"))
@@ -50,6 +66,8 @@ def find_problems(session: Session, now: datetime) -> list[Problem]:
     # Alleen de laatste job per label telt: een latere geslaagde update lost het op.
     latest = select(func.max(UpdateJob.id)).where(UpdateJob.status != JobStatus.SUPERSEDED).group_by(UpdateJob.label_id)
     for job in session.scalars(select(UpdateJob).where(UpdateJob.id.in_(latest), UpdateJob.status == JobStatus.FAILED)):
+        if job.store_id in suspended:
+            continue
         problems.append(Problem(job.store_id, "update_failed", job.label_id, "critical",
                                 f"Update label {job.label_id} {job.attempts}x mislukt: {job.error}"))
     return problems
@@ -57,7 +75,10 @@ def find_problems(session: Session, now: datetime) -> list[Problem]:
 
 def evaluate_alerts(session: Session, now: datetime | None = None) -> list[Alert]:
     """Opent alerts voor nieuwe problemen en sluit alerts waarvan het probleem weg is."""
+    from .subscriptions import apply_service_states
+
     now = now or utcnow()
+    apply_service_states(session, now)  # o.a. opzeggingen waarvan de einddatum verstreken is
     requeue_stale_jobs(session, now)
     current = {(p.kind, p.subject_id): p for p in find_problems(session, now)}
     open_alerts = {(a.kind, a.subject_id): a for a in session.scalars(select(Alert).where(Alert.resolved_at.is_(None)))}

@@ -1,0 +1,19 @@
+{% macro sub_badge(status, service_active=True) -%}
+  {%- if not service_active -%}<span class="badge err">uitgeschakeld</span>
+  {%- elif status == 'active' -%}<span class="badge ok">actief</span>
+  {%- elif status == 'trial' -%}<span class="badge info">proefperiode</span>
+  {%- elif status == 'cancelled' -%}<span class="badge warn">opgezegd</span>
+  {%- else -%}<span class="badge err">{{ STATUS_NAMES.get(status, status) }}</span>{%- endif -%}
+{%- endmacro %}
+{% macro online_badge(online) -%}
+  {%- if online -%}<span class="badge ok">online</span>{%- else -%}<span class="badge err">offline</span>{%- endif -%}
+{%- endmacro %}
+{% macro license_cell(valid_until) -%}
+  {%- if not valid_until -%}<span class="muted">nog geen check-in</span>
+  {%- elif valid_until < now() -%}<span class="badge err">verlopen</span> <span class="muted">{{ valid_until | dt }}</span>
+  {%- elif (valid_until - now()).days < 2 -%}<span class="badge warn">{{ valid_until | left }}</span>
+  {%- else -%}<span class="badge ok">{{ valid_until | left }}</span>{%- endif -%}
+{%- endmacro %}
+{% macro severity(s) -%}
+  {%- if s == 'critical' -%}<span class="badge err">kritiek</span>{%- else -%}<span class="badge warn">waarschuwing</span>{%- endif -%}
+{%- endmacro %}

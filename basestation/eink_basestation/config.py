@@ -38,6 +38,9 @@ class Config:
     hotspot_enabled: bool = True
     hotspot_ssid: str = ""
     hotspot_password: str = ""
+    # Verbindingslaag managementsysteem: in de fabriek gezet (anders vastgezet bij eerste verbinding).
+    license_public_key: str = ""
+    basestation_id: str = ""
 
     @classmethod
     def load(cls, path: Path) -> "Config":

@@ -18,6 +18,11 @@ Doel: **wij zien een storing eerder dan de winkel**.
 | `label_offline` | label > 6 uur niet gehoord | waarschuwing |
 | `battery_low` | batterij < 2400 mV | waarschuwing |
 | `update_failed` | update 3× mislukt | kritiek (verkeerde prijs op het schap!) |
+| `license_expiring` | licentie basisstation < 2 dagen geldig (check-in dreigt te verlopen) | waarschuwing |
+| `license_expired` | wekelijkse check-in gemist, basisstation staat stil | kritiek |
+
+Winkels met een uitgeschakeld abonnement geven geen storingsmeldingen. Het complete overzicht staat
+in het [managementsysteem](09-managementsysteem.md) op `/beheer`.
 
 Verstuurde jobs zonder antwoord binnen 10 minuten worden automatisch opnieuw ingepland.
 Alerts sluiten zichzelf zodra het probleem weg is.

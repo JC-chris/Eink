@@ -1,0 +1,16 @@
+{% extends "beheer/base.html" %}
+{% block title %}Auditlog{% endblock %}
+{% block content %}
+<h1>Auditlog</h1>
+<div class="card scroll">
+  <table>
+    <tr><th>Wanneer</th><th>Wie</th><th>Actie</th><th>Klant</th><th>Winkel</th><th>Details</th></tr>
+    {% for e in log %}
+    <tr><td class="muted">{{ e.at | dt }}</td><td>{{ e.actor }}</td><td><code>{{ e.action }}</code></td>
+      <td>{% if e.customer_id %}<a href="/beheer/klanten/{{ e.customer_id }}">{{ e.customer_id }}</a>{% endif %}</td><td>{{ e.store_id or '' }}</td><td>{{ e.details or '' }}</td></tr>
+    {% else %}
+    <tr><td colspan="6" class="muted">Nog geen acties.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

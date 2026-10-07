@@ -1,0 +1,22 @@
+{% extends "beheer/base.html" %}
+{% block title %}Medewerkers{% endblock %}
+{% block content %}
+<h1>Medewerkers</h1>
+<div class="cols">
+  <div class="card scroll">
+    <table>
+      <tr><th>Gebruikersnaam</th><th>Rol</th><th>Sinds</th></tr>
+      {% for o in operators %}<tr><td>{{ o.username }}</td><td><span class="badge {{ 'info' if o.role == 'admin' }}">{{ o.role }}</span></td><td class="muted">{{ o.created_at | d }}</td></tr>{% endfor %}
+    </table>
+  </div>
+  <div class="card">
+    <h2>Medewerker toevoegen of wachtwoord resetten</h2>
+    <form method="post" action="/beheer/medewerkers">
+      <p><label>Gebruikersnaam</label><input name="username" required></p>
+      <p><label>Wachtwoord (min. 10 tekens)</label><input name="password" type="password" minlength="10" autocomplete="new-password" required></p>
+      <p><label>Rol</label><select name="role"><option value="support">Support — bekijken en storingen oplossen</option><option value="admin">Admin — ook klanten en contracten</option></select></p>
+      <button>Opslaan</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

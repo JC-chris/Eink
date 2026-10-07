@@ -1,0 +1,13 @@
+{% extends "beheer/base.html" %}
+{% block title %}Inloggen{% endblock %}
+{% block header %}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:380px; margin:14vh auto 0">
+  <h1>Eink management</h1>
+  <form method="post" action="/beheer/login">
+    <p><label for="username">Gebruikersnaam</label><input id="username" name="username" autocomplete="username" autofocus required></p>
+    <p><label for="password">Wachtwoord</label><input id="password" name="password" type="password" autocomplete="current-password" required></p>
+    <p><button style="width:100%">Inloggen</button></p>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,20 @@
+{% extends "beheer/base.html" %}
+{% from "beheer/_macros.html" import online_badge, license_cell %}
+{% block title %}Basisstations{% endblock %}
+{% block content %}
+<h1>Basisstations</h1>
+<p class="muted">Elk basisstation moet minstens één keer per week verbinding maken. Bij elke check-in krijgt het een
+  ondertekende licentie die 7 dagen geldig is. Is die verlopen, dan stopt het basisstation tot het weer verbinding maakt.</p>
+<div class="card scroll">
+  <table>
+    <tr><th>Basisstation</th><th>Winkel</th><th>Klant</th><th>Status</th><th>Laatste check-in</th><th>Licentie</th><th>Software</th></tr>
+    {% for s in stations %}
+    <tr><td><strong>{{ s.id }}</strong></td><td><a href="/beheer/winkels/{{ s.store_id }}">{{ s.store_id }}</a></td>
+      <td>{% if s.customer_id %}<a href="/beheer/klanten/{{ s.customer_id }}">{{ s.customer_id }}</a>{% endif %}</td>
+      <td>{{ online_badge(s.online) }}</td><td>{{ s.last_seen | ago }}</td><td>{{ license_cell(s.license_valid_until) }}</td><td>{{ s.software_version or '' }}</td></tr>
+    {% else %}
+    <tr><td colspan="7" class="muted">Nog geen basisstations.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

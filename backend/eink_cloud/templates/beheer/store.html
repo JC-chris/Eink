@@ -1,0 +1,73 @@
+{% extends "beheer/base.html" %}
+{% from "beheer/_macros.html" import online_badge, license_cell, severity %}
+{% block title %}{{ store.name }}{% endblock %}
+{% block content %}
+<h1>{{ store.name }}
+  {% if store.service_state == 'suspended' %}<span class="badge err">uitgeschakeld</span>{% else %}<span class="badge ok">in dienst</span>{% endif %}
+  <span class="badge">{{ 'prijzen via kassa' if store.price_source == 'pos' else 'prijzen via webinterface' }}</span>
+</h1>
+<p class="muted">Winkel-ID <code>{{ store.id }}</code>{% if customer %} · klant <a href="/beheer/klanten/{{ customer.id }}">{{ customer.name }}</a>{% endif %}</p>
+
+{% if secret %}
+<div class="secret"><strong>{{ secret[0] }}</strong> — wordt maar één keer getoond, kopieer hem nu:<br><code>{{ secret[1] }}</code></div>
+{% endif %}
+
+<div class="kpis">
+  <div class="kpi"><div class="v">{{ overview.labels_online }} / {{ overview.labels_total }}</div><div class="k">Labels online</div></div>
+  <div class="kpi {{ 'warn' if overview.labels_out_of_sync }}"><div class="v">{{ overview.labels_out_of_sync }}</div><div class="k">Niet actueel</div></div>
+  <div class="kpi {{ 'warn' if overview.labels_battery_low }}"><div class="v">{{ overview.labels_battery_low }}</div><div class="k">Batterij laag</div></div>
+  <div class="kpi"><div class="v">{{ overview.jobs.pending + overview.jobs.sent }}</div><div class="k">Updates onderweg</div></div>
+  <div class="kpi {{ 'bad' if overview.jobs.failed }}"><div class="v">{{ overview.jobs.failed }}</div><div class="k">Updates mislukt</div></div>
+</div>
+
+<div class="card scroll">
+  <h2>Basisstations</h2>
+  <table>
+    <tr><th>ID</th><th>Status</th><th>Laatste check-in</th><th>Licentie (wekelijkse check-in)</th><th>Software</th></tr>
+    {% for s in stations %}
+    <tr><td><strong>{{ s.id }}</strong></td><td>{{ online_badge(s.online) }}</td><td>{{ s.last_seen | ago }}</td><td>{{ license_cell(s.license_valid_until) }}</td><td>{{ s.software_version or '' }}</td></tr>
+    {% else %}
+    <tr><td colspan="5" class="muted">Nog geen basisstation.</td></tr>
+    {% endfor %}
+  </table>
+  {% if op.role == 'admin' %}
+  <div class="inline" style="margin-top:12px; gap:16px">
+    <form method="post" action="/beheer/winkels/{{ store.id }}/basisstations" class="inline">
+      <input name="bs_id" required pattern="[A-Za-z0-9-]{2,64}" placeholder="bs-{{ store.id }}-1"><button class="secondary">Basisstation toevoegen</button>
+    </form>
+    <form method="post" action="/beheer/winkels/{{ store.id }}/api-sleutel" onsubmit="return confirm('De huidige API-sleutel van de kassa werkt hierna niet meer. Doorgaan?')">
+      <button class="secondary">Nieuwe kassa-API-sleutel</button>
+    </form>
+  </div>
+  {% endif %}
+</div>
+
+{% if alerts %}
+<div class="card scroll">
+  <h2>Open storingen</h2>
+  <table>
+    {% for a in alerts %}<tr><td>{{ severity(a.severity) }}</td><td>{{ a.message }}</td><td class="muted">{{ a.created_at | ago }}</td></tr>{% endfor %}
+  </table>
+</div>
+{% endif %}
+
+<div class="card scroll">
+  <h2>Labels</h2>
+  <table>
+    <tr><th>Label</th><th>Type</th><th>Product</th><th>Status</th><th>Laatst gezien</th><th class="num">Batterij</th><th class="num">Signaal</th><th>Via</th><th></th></tr>
+    {% for l in labels %}
+    <tr>
+      <td><code>{{ l.id }}</code></td><td>{{ display_types[l.display_type].description if l.display_type in display_types else l.display_type }}</td>
+      <td>{{ l.product_sku or '—' }}</td>
+      <td>{% if l.in_sync %}<span class="badge ok">actueel</span>{% elif l.expected_crc is none %}<span class="badge">leeg</span>{% else %}<span class="badge warn">wordt bijgewerkt</span>{% endif %}</td>
+      <td>{{ l.last_seen | ago }}</td>
+      <td class="num">{% if l.battery_mv %}<span class="{{ 'badge err' if l.battery_mv < 2400 }}">{{ l.battery_mv }} mV</span>{% endif %}</td>
+      <td class="num">{{ l.rssi ~ ' dBm' if l.rssi }}</td><td>{{ l.basestation_id or '' }}</td>
+      <td>{% if store.service_state != 'suspended' %}<form method="post" action="/beheer/winkels/{{ store.id }}/labels/{{ l.id }}/opnieuw"><button class="secondary">Opnieuw</button></form>{% endif %}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="9" class="muted">Nog geen labels.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}
