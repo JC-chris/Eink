@@ -15,6 +15,20 @@
   <div class="stat"><div class="v">{{ agent.jobs_failed }}</div><div class="k">Updates mislukt (sinds start)</div></div>
   <div class="stat"><div class="v">{{ (uptime_s // 3600) }} u {{ (uptime_s % 3600) // 60 }} m</div><div class="k">In bedrijf</div></div>
 </div>
+<div class="card">
+  <h2>Netwerk</h2>
+  <table>
+  {% for i in interfaces %}
+    <tr>
+      <td>{{ 'Ethernet' if i.kind == 'ethernet' else 'Wi-Fi' }}</td>
+      <td>{% if i.connected %}<span class="badge {{ 'warn' if i.connection == 'eink-hotspot' else 'ok' }}">{{ i.state }}</span>{% else %}<span class="badge">{{ i.state }}</span>{% endif %}
+          {% if i.ssid %} {{ i.ssid }}{% endif %}</td>
+      <td>{{ i.address.split('/')[0] if i.address }}</td>
+    </tr>
+  {% endfor %}
+  </table>
+  <p><a href="/netwerk">Netwerk instellen</a></p>
+</div>
 {% if agent.last_error %}<div class="card"><h2>Laatste fout</h2><code>{{ agent.last_error }}</code></div>{% endif %}
 {% if cloud_err %}<div class="card"><h2>Cloud</h2><code>{{ cloud_err }}</code></div>{% endif %}
 {% if store %}

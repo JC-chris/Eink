@@ -19,7 +19,7 @@ en op afstand wordt gemonitord.
 |---|---|
 | [`docs/`](docs/) | Ontwerp: architectuur, hardware, basisstation, radioprotocol, kassa-API, monitoring, certificering, roadmap |
 | [`backend/`](backend/) | Cloud-backend (Python/FastAPI): kassa-API, label-rendering, job-dispatch, monitoring & alerts — **werkend, met tests** |
-| [`basestation/`](basestation/) | Agent + **lokale webinterface** op het basisstation (status, instellingen, prijzen beheren zonder kassa); inclusief **radio-simulator** zodat alles zonder hardware te testen is |
+| [`basestation/`](basestation/) | Agent + **lokale webinterface** op het basisstation (status, **Ethernet/Wi-Fi**, instellingen, prijzen beheren zonder kassa); inclusief **radio-simulator** zodat alles zonder hardware te testen is |
 | [`firmware/`](firmware/) | Label-firmware: beeldformaat (C-header) en decoder; plan voor Zephyr/nRF Connect SDK |
 | [`hardware/`](hardware/) | Eisen en blokschema's voor label-PCB en basisstation-PCB, eerste BOM-schatting |
 

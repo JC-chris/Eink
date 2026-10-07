@@ -10,6 +10,8 @@ python -m eink_basestation.agent --config ./config.json --server http://localhos
 - Instellingen staan in `--config` (standaard `/etc/eink-basestation/config.json`, of `EINK_BASESTATION_CONFIG`).
   `--server`, `--token` en `--web-port` worden daarin opgeslagen; daarna kan alles via de webinterface.
 - Bij de eerste start zonder wachtwoord wordt een uniek wachtwoord gegenereerd en in de log gezet.
+- Netwerk (Ethernet/Wi-Fi/hotspot) via NetworkManager (`nmcli`). Op een pc zonder nmcli, of met
+  `--simulate`, wordt het netwerk gesimuleerd; forceer met `--network networkmanager|simulated`.
 - Zonder `--simulate` gebruikt de agent `NordicEslRadio` (nRF54L15 over UART) — die moet nog
   gebouwd worden, zie `eink_basestation/radio.py`.
 
@@ -19,4 +21,5 @@ python -m eink_basestation.agent --config ./config.json --server http://localhos
 | `webui.py` + `templates/` | Lokale webinterface: status, producten, labels, instellingen |
 | `cloud.py` | Client voor de cloud-API (met basisstation-token) |
 | `config.py` | Instellingen + wachtwoordhashing |
+| `network.py` | Ethernet, Wi-Fi en installatie-hotspot (NetworkManager of simulatie) + bewaking |
 | `radio.py` | `RadioBackend`, `SimulatedRadio`, `NordicEslRadio` (stub) |

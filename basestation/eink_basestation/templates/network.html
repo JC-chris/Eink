@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Netwerk{% endblock %}
+{% macro bars(signal) -%}
+  <span class="signal" title="{{ signal }}%">{% for t in [1, 25, 50, 75] %}<i class="{{ 'on' if signal >= t }}" style="height:{{ loop.index * 25 }}%"></i>{% endfor %}</span>
+{%- endmacro %}
+{% block content %}
+<h1>Netwerk</h1>
+
+{% if hotspot %}
+<div class="flash err" style="background:#fff3dc;color:#7a4d00">
+  De <strong>installatie-hotspot</strong> is actief ({{ config.hotspot_ssid }}). Sluit een netwerkkabel aan of verbind
+  hieronder met het Wi-Fi van de winkel. Let op: na het verbinden met Wi-Fi valt de hotspot weg; het basisstation is
+  daarna bereikbaar via zijn nieuwe IP-adres in het winkelnetwerk.
+</div>
+{% elif not online %}
+<div class="flash err">Het basisstation heeft geen netwerkverbinding.</div>
+{% endif %}
+
+<div class="card scroll">
+  <h2>Verbindingen</h2>
+  <table>
+    <tr><th>Aansluiting</th><th>Status</th><th>IP-adres</th><th>Gateway</th><th>DNS</th><th>MAC</th></tr>
+    {% for i in interfaces %}
+    <tr>
+      <td><strong>{{ 'Ethernet' if i.kind == 'ethernet' else 'Wi-Fi' }}</strong> <span class="muted">{{ i.name }}</span></td>
+      <td>{% if i.connected %}<span class="badge {{ 'warn' if i.connection == 'eink-hotspot' else 'ok' }}">{{ i.state }}</span>{% else %}<span class="badge">{{ i.state }}</span>{% endif %}
+          {% if i.ssid %}<br>{{ i.ssid }} {% if i.signal is not none %}{{ bars(i.signal) }}{% endif %}{% endif %}</td>
+      <td>{{ i.address or '' }}</td><td>{{ i.gateway or '' }}</td><td>{{ i.dns | join(', ') }}</td>
+      <td><code>{{ i.mac or '' }}</code></td>
+    </tr>
+    {% endfor %}
+  </table>
+  <p class="muted">Zijn Ethernet en Wi-Fi beide verbonden, dan gaat het verkeer via Ethernet; Wi-Fi is dan reserve.</p>
+</div>
+
+<div class="card">
+  <h2>Ethernet</h2>
+  <form method="post" action="/netwerk/ethernet">
+    <label class="choice"><input type="radio" name="method" value="dhcp" {{ 'checked' if eth.method == 'dhcp' }}>
+      <span><strong>Automatisch (DHCP)</strong><br><span class="muted">Aanbevolen. Het IP-adres komt van de router van de winkel.</span></span></label>
+    <label class="choice"><input type="radio" name="method" value="static" {{ 'checked' if eth.method == 'static' }}>
+      <span><strong>Vast IP-adres</strong><br><span class="muted">Alleen als de IT-beheerder van de winkel daarom vraagt.</span></span></label>
+    <div class="row">
+      <div><label for="address">IP-adres / prefix</label><input id="address" name="address" placeholder="192.168.1.50/24" value="{{ eth.address }}"></div>
+      <div><label for="gateway">Gateway</label><input id="gateway" name="gateway" placeholder="192.168.1.1" value="{{ eth.gateway }}"></div>
+      <div><label for="dns">DNS-servers</label><input id="dns" name="dns" placeholder="192.168.1.1 1.1.1.1" value="{{ eth.dns | join(' ') }}"></div>
+    </div>
+    <button>Opslaan</button>
+  </form>
+</div>
+
+<div class="card scroll">
+  <h2>Wi-Fi</h2>
+  <table>
+    <tr><th>Netwerk</th><th>Signaal</th><th>Beveiliging</th><th></th></tr>
+    {% for n in networks %}
+    <tr>
+      <td><strong>{{ n.ssid }}</strong>{% if n.in_use %} <span class="badge ok">verbonden</span>{% endif %}</td>
+      <td>{{ bars(n.signal) }} <span class="muted">{{ n.signal }}%</span></td>
+      <td>{{ n.security or 'open' }}</td>
+      <td>
+        {% if n.in_use %}
+        <form method="post" action="/netwerk/wifi/vergeten" class="inline"><button class="secondary">Vergeten</button></form>
+        {% else %}
+        <form method="post" action="/netwerk/wifi" class="inline">
+          <input type="hidden" name="ssid" value="{{ n.ssid }}">
+          {% if n.security and n.security != 'open' %}<input name="password" type="password" placeholder="wachtwoord" autocomplete="off" minlength="8" maxlength="63" required style="width:160px">{% endif %}
+          <button>Verbinden</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="4" class="muted">Geen Wi-Fi-netwerken gevonden.</td></tr>
+    {% endfor %}
+  </table>
+  <p><a href="/netwerk?rescan=1">Opnieuw zoeken</a></p>
+  <details>
+    <summary>Verborgen netwerk</summary>
+    <form method="post" action="/netwerk/wifi" style="margin-top:12px">
+      <div class="row">
+        <div><label for="hidden-ssid">Netwerknaam (SSID)</label><input id="hidden-ssid" name="ssid" maxlength="32" required></div>
+        <div><label for="hidden-pw">Wachtwoord</label><input id="hidden-pw" name="password" type="password" autocomplete="off" maxlength="63"></div>
+      </div>
+      <button>Verbinden</button>
+    </form>
+  </details>
+</div>
+
+<div class="card">
+  <h2>Installatie-hotspot</h2>
+  <p class="muted">Heeft het basisstation 2 minuten geen netwerk, dan start het een eigen Wi-Fi-netwerk. Verbind daarmee
+    en open <code>http://10.42.0.1:{{ config.web_port }}</code> om het netwerk in te stellen.</p>
+  <table>
+    <tr><td class="muted">Netwerknaam</td><td><code>{{ config.hotspot_ssid }}</code></td></tr>
+    <tr><td class="muted">Wachtwoord</td><td><code>{{ config.hotspot_password }}</code> <span class="muted">(ook op de sticker)</span></td></tr>
+  </table>
+  <form method="post" action="/netwerk/hotspot" style="margin-top:12px">
+    <label class="choice"><input type="checkbox" name="enabled" {{ 'checked' if config.hotspot_enabled }}>
+      <span>Automatisch starten als er geen netwerk is <span class="muted">(aanbevolen)</span></span></label>
+    <button class="secondary">Opslaan</button>
+  </form>
+</div>
+{% endblock %}

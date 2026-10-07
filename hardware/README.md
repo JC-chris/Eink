@@ -32,6 +32,11 @@ Gerbers + BOM + pick-and-place naar `production/`.
 
 - [ ] Start met Raspberry Pi 5 + nRF54L15-DK (USB) — nog geen eigen PCB
 - [ ] Daarna: CM5-carrier, PoE 802.3af PD, nRF54L15 + optioneel nRF21540 PA/LNA
+- [ ] **Ethernet**: Gigabit RJ45 met geïntegreerde magnetics, ESD-bescherming, link/activity-LED's
+- [ ] **Wi-Fi**: CM5-variant mét Wi-Fi, U.FL → externe dual-band antenne (2,4 + 5 GHz) van de goedgekeurde lijst
+- [ ] Antennes Wi-Fi en ESL ≥ 10–15 cm uit elkaar, orthogonaal; coexistence-meting in precompliance
+- [ ] Netvoedingsingang (USB-C PD of 12 V) voor plekken zonder PoE
+- [ ] Reset-knop: kort = herstart, 10 s = netwerkinstellingen terug naar fabriek (hotspot aan)
 - [ ] Secure element (SE050) voor device-identiteit
 - [ ] Hardware-watchdog, RTC, status-LED's
 - [ ] Optioneel LTE-M modem (mini-PCIe/M.2)

@@ -131,6 +131,7 @@ def main() -> None:
     import uvicorn
 
     from .cloud import default_client_factory
+    from .network import NetworkWatchdog, SimulatedNetwork, detect_backend, start_watchdog
     from .webui import create_webui
 
     p = argparse.ArgumentParser(description=__doc__)
@@ -140,6 +141,8 @@ def main() -> None:
     p.add_argument("--web-port", type=int, help="poort van de webinterface (standaard 8080)")
     p.add_argument("--simulate", metavar="LABEL_ID", nargs="*", help="gebruik gesimuleerde radio met deze labels")
     p.add_argument("--device", default="/dev/ttyACM0", help="seriële poort van de nRF54L15")
+    p.add_argument("--network", choices=("auto", "networkmanager", "simulated"), default="auto",
+                   help="netwerkbeheer: NetworkManager (apparaat) of simulatie; auto = simulatie bij --simulate")
     args = p.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)  # anders elke poll een logregel
@@ -149,6 +152,7 @@ def main() -> None:
         if getattr(args, name) is not None:
             setattr(config, name, getattr(args, name))
     new_password = config.ensure_password()
+    config.ensure_hotspot()
     config.save(args.config)
     if new_password:
         log.warning("Eerste wachtwoord webinterface: %s (wijzig via Instellingen)", new_password)
@@ -162,7 +166,18 @@ def main() -> None:
     agent = Agent(default_client_factory(config) if config.token else None, radio)
     threading.Thread(target=agent.run_forever, name="agent", daemon=True).start()
 
-    app = create_webui(config, args.config, agent, default_client_factory)
+    if args.network == "simulated" or (args.network == "auto" and args.simulate is not None):
+        network = SimulatedNetwork()
+    elif args.network == "networkmanager":
+        from .network import NetworkManagerBackend
+
+        network = NetworkManagerBackend()
+    else:
+        network = detect_backend()
+    start_watchdog(NetworkWatchdog(network, config.hotspot_ssid, config.hotspot_password,
+                                   enabled=lambda: config.hotspot_enabled))
+
+    app = create_webui(config, args.config, agent, default_client_factory, network)
     uvicorn.run(app, host="0.0.0.0", port=config.web_port, log_level="warning")
 
 

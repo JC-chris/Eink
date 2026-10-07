@@ -48,6 +48,10 @@
     header nav { order:3; flex-basis:100%; overflow-x:auto; white-space:nowrap; }
     .grid { grid-template-columns:repeat(2, 1fr); }
   }
+  .signal { display:inline-flex; gap:2px; align-items:flex-end; height:14px; vertical-align:middle; }
+  .signal i { width:4px; background:#c9c9c2; display:block; }
+  .signal i.on { background:var(--text); }
+  details summary { cursor:pointer; color:var(--muted); }
   code { background:#f0f0ea; padding:1px 5px; border-radius:4px; }
 </style>
 </head>
@@ -59,6 +63,7 @@
     <a href="/" class="{{ 'active' if path == '/' }}">Status</a>
     <a href="/producten" class="{{ 'active' if path.startswith('/producten') }}">Producten</a>
     <a href="/labels" class="{{ 'active' if path.startswith('/labels') }}">Labels</a>
+    <a href="/netwerk" class="{{ 'active' if path.startswith('/netwerk') }}">Netwerk</a>
     <a href="/instellingen" class="{{ 'active' if path.startswith('/instellingen') }}">Instellingen</a>
   </nav>
   <form method="post" action="/logout"><button>Uitloggen</button></form>

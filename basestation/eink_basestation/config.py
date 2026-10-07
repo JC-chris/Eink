@@ -34,6 +34,10 @@ class Config:
     web_port: int = 8080
     password_hash: str = ""
     session_secret: str = field(default_factory=lambda: secrets.token_hex(32))
+    # Installatie-hotspot als er geen netwerk is (SSID + wachtwoord op de sticker).
+    hotspot_enabled: bool = True
+    hotspot_ssid: str = ""
+    hotspot_password: str = ""
 
     @classmethod
     def load(cls, path: Path) -> "Config":
@@ -48,6 +52,13 @@ class Config:
         tmp.write_text(json.dumps(asdict(self), indent=2))
         os.chmod(tmp, 0o600)
         tmp.replace(path)  # atomair: geen half geschreven config bij stroomuitval
+
+    def ensure_hotspot(self) -> None:
+        """Uniek per apparaat; in productie zet de fabriek dit op de sticker."""
+        if not self.hotspot_ssid:
+            self.hotspot_ssid = f"Eink-{secrets.token_hex(2).upper()}"
+        if not self.hotspot_password:
+            self.hotspot_password = secrets.token_urlsafe(9)
 
     def ensure_password(self) -> str | None:
         """Geen standaardwachtwoorden (EN 18031): genereer er een per apparaat.

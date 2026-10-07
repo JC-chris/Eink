@@ -15,8 +15,8 @@
                                 │
  ┌──────────────────────────────▼──────────────────────────────┐
  │  Linux-SoM (Raspberry Pi CM5 of NXP i.MX 8M Mini SoM)       │
- │   ├─ Ethernet (primair)                                     │
- │   ├─ Wi-Fi (optioneel, via SoM)                             │
+ │   ├─ Ethernet 10/100/1000 (RJ45, + PoE)          — verplicht │
+ │   ├─ Wi-Fi 2,4 + 5 GHz (802.11ac, ext. antenne)  — verplicht │
  │   ├─ LTE-M/4G-modem (optie, fallback bij storing winkelnet) │
  │   ├─ secure element (NXP SE050 / Microchip ATECC608)        │
  │   │     → device-identiteit, mTLS-sleutel niet uitleesbaar  │
@@ -28,6 +28,48 @@
  │                     └─ 2× antenne (diversity), SMA of intern│
  └─────────────────────────────────────────────────────────────┘
 ```
+
+## Netwerkaansluiting: Ethernet én Wi-Fi
+
+Beide aansluitingen zijn standaard aanwezig, want niet elke winkel heeft een kabel op de plek waar
+het basisstation moet hangen.
+
+| | Ethernet | Wi-Fi |
+|---|---|---|
+| Hardware | Gigabit-PHY (in SoM), RJ45 met magnetics, PoE 802.3af | Gecertificeerde Wi-Fi 5-module (CM5 heeft deze ingebouwd), 2,4 + 5 GHz, U.FL naar externe antenne |
+| Gebruik | Voorkeur: stabiel en voeding via dezelfde kabel | Als er geen kabel is, of als reserve wanneer Ethernet uitvalt |
+| Voorrang | route-metric 100 | route-metric 600: Ethernet wint als beide verbonden zijn |
+| Instellen | DHCP (standaard) of vast IP | Netwerken zoeken, verbinden (WPA2/WPA3-Personal), verborgen SSID, vergeten |
+
+**Wi-Fi en de labelradio zitten allebei op 2,4 GHz.** Dat is het grootste ontwerprisico van het
+basisstation. Maatregelen:
+
+1. **Bij voorkeur Wi-Fi op 5 GHz.** De webinterface toont de netwerken; adviseer de installateur
+   het 5 GHz-netwerk te kiezen. Dan is er geen storing met de labels.
+2. **Antennes scheiden.** Wi-Fi- en ESL-antenne minimaal 10–15 cm uit elkaar en haaks op elkaar
+   (orthogonale polarisatie). Liefst ook aan verschillende zijden van de behuizing.
+3. **Kanaalplanning.** BLE ESL (PAwR) gebruikt de advertising-kanalen 37/38/39 en hopt over de
+   datakanalen. De radio kan via *channel map* de Wi-Fi-kanalen die in gebruik zijn vermijden;
+   de agent kan het actieve Wi-Fi-kanaal doorgeven aan de nRF54L15.
+4. **Meten in de EMC-/RF-precompliance:** gevoeligheid van de ESL-radio met Wi-Fi actief op vol vermogen.
+
+Netwerkbeheer op het apparaat gebeurt met **NetworkManager** (`nmcli`). De agent maakt eigen,
+herkenbare verbindingen aan (`eink-ethernet`, `eink-wifi`, `eink-hotspot`) en raakt de rest niet aan.
+
+### Installatie-hotspot
+
+Een basisstation zonder werkende netwerkinstelling moet je altijd kunnen bereiken:
+
+1. Heeft het basisstation **2 minuten** geen Ethernet en geen Wi-Fi, dan start het een eigen
+   Wi-Fi-netwerk **`Eink-XXXX`**. Netwerknaam en wachtwoord zijn uniek per apparaat en staan op de sticker.
+2. De installateur verbindt met telefoon of laptop en opent **`http://10.42.0.1:8080`**.
+3. Bij *Netwerk* kiest de installateur het winkel-Wi-Fi (of steekt een kabel in). De hotspot gaat
+   uit en het basisstation zit in het winkelnetwerk.
+4. Verkeerd wachtwoord of foute instelling? Dan is er na 2 minuten weer geen netwerk en komt de
+   hotspot vanzelf terug. Een verkeerde instelling kan het apparaat dus niet onbereikbaar maken.
+5. Gaat de Ethernet-kabel erin, dan stopt een actieve hotspot direct.
+
+De hotspot is in de webinterface uit te zetten. Dat raden we niet aan.
 
 **Start pragmatisch**: prototype = Raspberry Pi 5 + nRF54L15-DK via USB. Pas na de pilot een
 eigen carrier-board ontwerpen.
@@ -65,6 +107,7 @@ op pc, tablet of telefoon:
 | **Status** | Cloudverbinding, labels in bereik, gelukte/mislukte updates, laatste fout |
 | **Producten** | Producten en prijzen beheren (alleen in modus *webinterface*; anders alleen-lezen) |
 | **Labels** | Nieuwe labels in bereik registreren, koppelen aan een product, preview, opnieuw sturen |
+| **Netwerk** | Status Ethernet/Wi-Fi (IP, gateway, DNS, signaal), Ethernet DHCP of vast IP, Wi-Fi zoeken/verbinden/vergeten, installatie-hotspot |
 | **Instellingen** | **Prijsbron** (kassa ↔ webinterface), cloudserver + token, wachtwoord, apparaatinfo |
 
 **Prijsbron omschakelen.** Een winkel zonder kassakoppeling zet de prijsbron op *Webinterface*
@@ -89,4 +132,5 @@ ook tijdens een internetstoring direct op de labels komen en later worden gesync
 - Plafond- of wandmontage centraal boven de verkoopvloer; bij koelcellen/vitrines: zicht op de
   toonbank. Metalen vitrines en water/ijs dempen 2,4 GHz sterk → **sitesurvey** met testlabel
   (RSSI wordt per label gemeten en is zichtbaar in de monitoring).
-- Eén PoE-kabel. Geen poorten open in de firewall nodig (alleen uitgaand 443).
+- Bij voorkeur één PoE-kabel. Anders: netvoeding + Wi-Fi (bij voorkeur 5 GHz).
+- Geen poorten open in de firewall nodig (alleen uitgaand 443).

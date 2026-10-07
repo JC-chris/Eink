@@ -23,6 +23,7 @@ from . import __version__
 from .agent import Agent
 from .cloud import ClientFactory, Cloud, CloudError
 from .config import Config, hash_password, verify_password
+from .network import EthernetConfig, NetworkBackend, NetworkError, SimulatedNetwork, online
 
 SESSION_COOKIE = "eink_session"
 SESSION_TTL_S = 12 * 3600
@@ -87,8 +88,16 @@ def _ip_addresses() -> list[str]:
         return []
 
 
-def create_webui(config: Config, config_path: Path, agent: Agent, client_factory: ClientFactory) -> FastAPI:
+def create_webui(config: Config, config_path: Path, agent: Agent, client_factory: ClientFactory,
+                 network: NetworkBackend | None = None) -> FastAPI:
     app = FastAPI(title="Eink basisstation", docs_url=None, redoc_url=None, openapi_url=None)
+    network = network or SimulatedNetwork()
+
+    def network_status() -> tuple[list, str | None]:
+        try:
+            return network.status(), None
+        except NetworkError as exc:
+            return [], str(exc)
 
     def cloud() -> Cloud:
         return Cloud(client_factory(config))
@@ -159,8 +168,9 @@ def create_webui(config: Config, config_path: Path, agent: Agent, client_factory
     @app.get("/", response_class=HTMLResponse, dependencies=[Depends(require_login)])
     def status(request: Request):
         store, err = store_or_error() if config.token else (None, None)
+        interfaces, _ = network_status()
         return render(request, "status.html", store=store, cloud_err=err, agent=agent.status,
-                      uptime_s=agent.uptime_s, configured=bool(config.token))
+                      uptime_s=agent.uptime_s, configured=bool(config.token), interfaces=interfaces)
 
     # --- producten --------------------------------------------------------------------------
 
@@ -254,13 +264,67 @@ def create_webui(config: Config, config_path: Path, agent: Agent, client_factory
         except CloudError as exc:
             return Response(str(exc), status_code=404)
 
+    # --- netwerk ----------------------------------------------------------------------------
+
+    @app.get("/netwerk", response_class=HTMLResponse, dependencies=[Depends(require_login)])
+    def network_page(request: Request, rescan: bool = False):
+        interfaces, err = network_status()
+        try:
+            eth = network.ethernet_config()
+            networks = network.scan_wifi(rescan=rescan)
+        except NetworkError as exc:
+            eth, networks, err = EthernetConfig(), [], err or str(exc)
+        return render(request, "network.html", interfaces=interfaces, eth=eth, networks=networks, err=err,
+                      online=online(interfaces), hotspot=network.hotspot_active() if not err else False,
+                      config=config)
+
+    @app.post("/netwerk/ethernet", dependencies=[Depends(require_login)])
+    def set_ethernet(method: str = Form("dhcp"), address: str = Form(""), gateway: str = Form(""),
+                     dns: str = Form("")):
+        cfg = EthernetConfig(method, address, gateway, [d for d in dns.replace(",", " ").split() if d])
+        try:
+            network.set_ethernet(cfg)
+        except (ValueError, NetworkError) as exc:
+            return _redirect("/netwerk", err=str(exc))
+        where = "DHCP" if method == "dhcp" else f"vast IP-adres {cfg.address.split('/')[0]}"
+        return _redirect("/netwerk", msg=f"Ethernet ingesteld op {where}")
+
+    @app.post("/netwerk/wifi", dependencies=[Depends(require_login)])
+    def connect_wifi(ssid: str = Form(...), password: str = Form("")):
+        try:
+            network.connect_wifi(ssid.strip(), password or None)
+        except NetworkError as exc:
+            return _redirect("/netwerk", err=str(exc))
+        return _redirect("/netwerk", msg=f"Verbonden met Wi-Fi {ssid.strip()}")
+
+    @app.post("/netwerk/wifi/vergeten", dependencies=[Depends(require_login)])
+    def forget_wifi():
+        try:
+            network.forget_wifi()
+        except NetworkError as exc:
+            return _redirect("/netwerk", err=str(exc))
+        return _redirect("/netwerk", msg="Wi-Fi-netwerk vergeten")
+
+    @app.post("/netwerk/hotspot", dependencies=[Depends(require_login)])
+    def set_hotspot(enabled: str = Form("")):
+        config.hotspot_enabled = enabled == "on"
+        config.save(config_path)
+        if not config.hotspot_enabled and network.hotspot_active():
+            interfaces, _ = network_status()
+            if online(interfaces):
+                network.stop_hotspot()
+        state = "aan" if config.hotspot_enabled else "uit"
+        return _redirect("/netwerk", msg=f"Automatische installatie-hotspot staat {state}")
+
     # --- instellingen -----------------------------------------------------------------------
 
     @app.get("/instellingen", response_class=HTMLResponse, dependencies=[Depends(require_login)])
     def settings(request: Request):
         store, err = store_or_error() if config.token else (None, None)
+        interfaces, _ = network_status()
+        ips = [i.address.split("/")[0] for i in interfaces if i.connected and i.address] or _ip_addresses()
         return render(request, "settings.html", store=store, cloud_err=err, config=config,
-                      hostname=socket.gethostname(), ips=_ip_addresses(), uptime_s=agent.uptime_s)
+                      hostname=socket.gethostname(), ips=ips, uptime_s=agent.uptime_s)
 
     @app.post("/instellingen/prijsbron", dependencies=[Depends(require_login)])
     def set_price_source(price_source: str = Form(...)):

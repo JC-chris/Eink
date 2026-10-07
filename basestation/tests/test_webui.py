@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from eink_basestation.agent import Agent
 from eink_basestation.config import Config, hash_password
+from eink_basestation.network import SimulatedNetwork
 from eink_basestation.radio import SimulatedRadio
 from eink_basestation.webui import create_webui, parse_euro
 from eink_cloud.main import create_app
@@ -27,7 +28,8 @@ def env(tmp_path):
     radio = SimulatedRadio()
     radio.add_label(LABEL)
     agent = Agent(factory(config), radio)
-    ui = TestClient(create_webui(config, tmp_path / "config.json", agent, factory))
+    config.ensure_hotspot()
+    ui = TestClient(create_webui(config, tmp_path / "config.json", agent, factory, SimulatedNetwork()))
     pos = TestClient(cloud_app, headers={"Authorization": f"Bearer {store['api_key']}"})
     return ui, agent, pos, config, tmp_path
 
@@ -151,3 +153,30 @@ def test_unconfigured_station(tmp_path):
     ui = TestClient(create_webui(config, tmp_path / "c.json", agent, lambda c: None))
     login(ui)
     assert "nog niet met de cloud verbonden" in ui.get("/").text
+
+
+def test_network_page(env):
+    ui, _agent, _pos, config, tmp_path = env
+    login(ui)
+    page = ui.get("/netwerk").text
+    assert "192.168.1.23/24" in page and "Winkel-WiFi" in page and config.hotspot_ssid in page
+    assert "Ethernet" in ui.get("/").text
+
+    r = ui.post("/netwerk/ethernet", data={"method": "static", "address": "192.168.1.50/24", "gateway": "10.0.0.1"})
+    assert "ligt niet in het netwerk" in r.text
+    r = ui.post("/netwerk/ethernet", data={"method": "static", "address": "192.168.1.50/24",
+                                           "gateway": "192.168.1.1", "dns": "1.1.1.1, 8.8.8.8"})
+    assert "vast IP-adres 192.168.1.50" in r.text and 'value="1.1.1.1 8.8.8.8"' in r.text
+    r = ui.post("/netwerk/ethernet", data={"method": "dhcp"})
+    assert "Ethernet ingesteld op DHCP" in r.text
+
+    r = ui.post("/netwerk/wifi", data={"ssid": "Winkel-WiFi", "password": "fout-wachtwoord"})
+    assert "onjuist wachtwoord" in r.text
+    r = ui.post("/netwerk/wifi", data={"ssid": "Winkel-WiFi", "password": "geheim123"})
+    assert "Verbonden met Wi-Fi Winkel-WiFi" in r.text and "Vergeten" in r.text
+    r = ui.post("/netwerk/wifi/vergeten")
+    assert "Wi-Fi-netwerk vergeten" in r.text
+
+    r = ui.post("/netwerk/hotspot", data={})
+    assert "hotspot staat uit" in r.text
+    assert Config.load(tmp_path / "config.json").hotspot_enabled is False

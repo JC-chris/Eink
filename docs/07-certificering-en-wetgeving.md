@@ -8,7 +8,8 @@
 | Richtlijn / norm | Wat | Geldt voor |
 |---|---|---|
 | **RED 2014/53/EU** | Radio-apparatuur | label + basisstation |
-| EN 300 328 | 2,4 GHz radio (EN 300 220 bij 868 MHz) | label + basisstation |
+| EN 300 328 | 2,4 GHz radio (BLE én Wi-Fi 2,4 GHz; EN 300 220 bij 868 MHz) | label + basisstation |
+| EN 301 893 | Wi-Fi 5 GHz, inclusief DFS (radardetectie) | basisstation |
 | EN 301 489-1 / -17 | EMC radio-apparatuur | label + basisstation |
 | EN 62368-1 | Elektrische veiligheid | basisstation (labels: beperkt) |
 | EN 62311 / EN 50663 | Blootstelling RF (laag vermogen) | beide |
@@ -23,6 +24,14 @@
   vanaf **september 2026**, volledige eisen vanaf **december 2027** (SBOM, kwetsbaarhedenbeheer,
   security-updates gedurende de supportperiode). Bouw dit nu al in: gesigneerde firmware,
   SBOM per release, beveiligd OTA, vulnerability-disclosure-beleid.
+
+## Twee zenders in één apparaat (basisstation)
+
+Het basisstation heeft BLE (labels) én Wi-Fi. Ook als beide modules los gecertificeerd zijn, moet
+het eindproduct opnieuw beoordeeld worden op **gelijktijdig zenden** (co-location): intermodulatie,
+spurious emissions en SAR/RF-blootstelling met beide zenders aan. Neem dit vanaf het begin mee in
+het testplan. Gebruik voor Wi-Fi een gecertificeerde module (bv. de ingebouwde van de CM5) met
+**alleen de antennes waarmee die module gecertificeerd is**.
 
 ## Bluetooth
 
