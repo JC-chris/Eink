@@ -33,7 +33,7 @@ en op afstand wordt gemonitord.
 6. [Monitoring op afstand](docs/06-monitoring.md)
 7. [Certificering & wetgeving](docs/07-certificering-en-wetgeving.md)
 8. [Roadmap, team & kosten](docs/08-roadmap.md)
-9. [Managementsysteem: voorraad & koppelen, abonnementen, wekelijkse check-in](docs/09-managementsysteem.md)
+9. [Managementsysteem: scannen bij uitlevering, voorraad & koppelen, abonnementen, wekelijkse check-in](docs/09-managementsysteem.md)
 
 ## Snel starten (zonder hardware)
 

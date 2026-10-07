@@ -1,0 +1,45 @@
+{% extends "beheer/base.html" %}
+{% block title %}Pakbon levering #{{ s.id }}{% endblock %}
+{% block content %}
+<style>
+  @media print {
+    header, .no-print, .flash { display:none !important; }
+    body { background:#fff; font-size:12px; }
+    main { padding:0; max-width:none; }
+    .card { border:0; padding:0; }
+  }
+  .ids { columns: 3 220px; column-gap: 24px; }
+  .ids div { break-inside: avoid; padding:2px 0; font-family: ui-monospace, monospace; }
+  .sign { display:grid; grid-template-columns:1fr 1fr; gap:40px; margin-top:40px; }
+  .sign div { border-top:1px solid #999; padding-top:6px; color:var(--muted); }
+</style>
+<div class="no-print" style="margin-bottom:12px; display:flex; gap:8px">
+  <button onclick="window.print()">Pakbon printen</button>
+  <a href="/beheer/scannen?store_id={{ s.store_id }}"><button class="secondary" type="button">Uitbreiding scannen voor deze winkel</button></a>
+</div>
+<div class="card">
+  <h1>Pakbon — levering #{{ s.id }}</h1>
+  <table style="width:auto; margin-bottom:16px">
+    <tr><td class="muted">Klant</td><td><strong>{{ customer.name if customer else '—' }}</strong></td></tr>
+    <tr><td class="muted">Winkel</td><td>{{ store.name }} <span class="muted">({{ store.id }})</span></td></tr>
+    <tr><td class="muted">Datum</td><td>{{ s.created_at | dt }}</td></tr>
+    {% if s.reference %}<tr><td class="muted">Referentie</td><td>{{ s.reference }}</td></tr>{% endif %}
+    <tr><td class="muted">Gescand door</td><td>{{ s.created_by.split(':')[-1] }}</td></tr>
+  </table>
+
+  <h2>Inhoud</h2>
+  <table style="margin-bottom:16px">
+    <tr><th>Artikel</th><th class="num">Aantal</th></tr>
+    {% if s.basestation_id %}<tr><td>Basisstation <code>{{ s.basestation_id }}</code></td><td class="num">1</td></tr>{% endif %}
+    {% for t, n in per_type.items() %}
+    <tr><td>Display {{ display_types[t].description if t in display_types else t }}</td><td class="num">{{ n }}</td></tr>
+    {% endfor %}
+  </table>
+  {% if s.pinned %}<p class="muted">Displays zijn vast gekoppeld aan basisstation {{ s.basestation_id }}.</p>{% endif %}
+
+  <h2>Display-ID's ({{ labels | length }})</h2>
+  <div class="ids">{% for l in labels %}<div>{{ l.item_id }}</div>{% endfor %}</div>
+
+  <div class="sign"><div>Afgeleverd door</div><div>Ontvangen door (naam en handtekening)</div></div>
+</div>
+{% endblock %}

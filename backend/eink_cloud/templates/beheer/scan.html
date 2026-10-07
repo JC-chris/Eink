@@ -1,0 +1,154 @@
+{% extends "beheer/base.html" %}
+{% block title %}Scannen{% endblock %}
+{% block content %}
+<h1>Scannen bij uitlevering</h1>
+<p class="muted">Kies de winkel van de klant. Scan het basisstation en daarna de displays. Bij een uitbreiding scan je alleen
+  de nieuwe displays. Pas bij <strong>Bevestigen</strong> wordt alles gekoppeld: alles of niets.</p>
+
+<div class="card">
+  <form method="get" action="/beheer/scannen" class="inline">
+    <label style="margin:0">Klant / winkel</label>
+    <select name="store_id" onchange="this.form.submit()" style="width:auto; min-width:320px">
+      <option value="">— kies klant en winkel —</option>
+      {% for sid, name in stores %}<option value="{{ sid }}" {{ 'selected' if store and store.id == sid }}>{{ name }}</option>{% endfor %}
+    </select>
+    <noscript><button class="secondary">Kiezen</button></noscript>
+    <a href="/beheer/klanten">Nieuwe klant of winkel aanmaken</a>
+  </form>
+  {% if store and existing_stations %}
+  <p class="muted" style="margin-bottom:0">Deze winkel heeft al: {% for b in existing_stations %}<code>{{ b.id }}</code> {% endfor %}— voor een uitbreiding hoef je geen basisstation te scannen.</p>
+  {% endif %}
+</div>
+
+{% if store %}
+<form method="post" action="/beheer/scannen" id="scanform">
+  <input type="hidden" name="store_id" value="{{ store.id }}">
+  <div class="cols">
+    <div class="card">
+      <h2>Scan</h2>
+      <input id="scan" autocomplete="off" autofocus placeholder="Scan barcode (of typ en druk Enter)"
+             style="font-size:20px; padding:14px; border:2px solid var(--nav)" aria-label="barcode">
+      <div id="last" class="flash" style="margin:12px 0 0; display:none"></div>
+      <noscript>
+        <p><label>Zonder JavaScript: plak de barcodes, één per regel</label><textarea name="codes_text" rows="8"></textarea></p>
+      </noscript>
+    </div>
+    <div class="card">
+      <h2>Levering voor {{ store.name }}</h2>
+      <div class="kpis" style="margin-bottom:12px">
+        <div class="kpi"><div class="v" id="n-bs">0</div><div class="k">Basisstation</div></div>
+        <div class="kpi"><div class="v" id="n-labels">0</div><div class="k">Displays</div></div>
+      </div>
+      <div id="per-type" class="muted" style="margin-bottom:12px"></div>
+      <div class="row">
+        <div><label>Ordernummer / referentie</label><input name="reference" maxlength="100" placeholder="bv. ORD-2026-0142"></div>
+        <div><label>Type voor displays die niet op voorraad staan</label>
+          <select name="new_display_type">{% for d in display_types.values() %}<option value="{{ d.id }}" {{ 'selected' if d.id == 'bwry_2_9' }}>{{ d.description }}</option>{% endfor %}</select></div>
+      </div>
+      <label class="checkbox" style="margin-bottom:12px"><input type="checkbox" name="pin" value="1" checked>
+        <span>Displays vast koppelen aan het gescande basisstation</span></label>
+      <button id="confirm" disabled>Bevestigen en koppelen</button>
+    </div>
+  </div>
+
+  <div class="card scroll">
+    <h2>Gescand</h2>
+    <table id="items">
+      <tr><th>#</th><th>Soort</th><th>ID</th><th>Controle</th><th></th></tr>
+      <tr id="empty"><td colspan="5" class="muted">Nog niets gescand.</td></tr>
+    </table>
+  </div>
+</form>
+
+<script>
+(() => {
+  const storeId = {{ store.id | tojson }};
+  const types = {{ display_types_json | safe }};
+  const input = document.getElementById('scan'), table = document.getElementById('items');
+  const last = document.getElementById('last'), confirmBtn = document.getElementById('confirm');
+  const seen = new Map();  // id -> {kind, display_type, status}
+  let n = 0, audio;
+
+  function beep(kind) {
+    try {
+      audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+      const tones = {ok: [[880, 0.08]], warn: [[660, 0.08], [660, 0.08]], error: [[200, 0.35]]}[kind];
+      let t = audio.currentTime;
+      for (const [f, d] of tones) {
+        const o = audio.createOscillator(), g = audio.createGain();
+        o.frequency.value = f; o.connect(g); g.connect(audio.destination);
+        g.gain.setValueAtTime(0.15, t); o.start(t); o.stop(t + d); t += d + 0.06;
+      }
+    } catch (e) { /* geen geluid beschikbaar */ }
+  }
+
+  function show(status, text) {
+    last.style.display = 'block';
+    last.className = 'flash ' + (status === 'error' ? 'err' : 'ok');
+    last.style.background = status === 'warn' ? '#fff3dc' : '';
+    last.style.color = status === 'warn' ? '#7a4d00' : '';
+    last.textContent = text;
+  }
+
+  function refresh() {
+    const items = [...seen.values()].filter(i => i.status !== 'error');
+    const bs = items.filter(i => i.kind === 'basestation').length;
+    const labels = items.filter(i => i.kind === 'label');
+    document.getElementById('n-bs').textContent = bs;
+    document.getElementById('n-labels').textContent = labels.length;
+    const per = {};
+    for (const l of labels) { const k = l.display_type ? (types[l.display_type] || l.display_type) : 'nieuw'; per[k] = (per[k] || 0) + 1; }
+    document.getElementById('per-type').textContent = Object.entries(per).map(([k, v]) => `${v} × ${k}`).join(' · ');
+    const hasError = [...seen.values()].some(i => i.status === 'error');
+    confirmBtn.disabled = items.length === 0 || hasError || bs > 1;
+    confirmBtn.textContent = hasError ? 'Verwijder eerst de foute scans' : bs > 1 ? 'Maximaal één basisstation per levering'
+      : `Bevestigen en koppelen (${bs ? '1 basisstation + ' : ''}${labels.length} displays)`;
+    document.getElementById('empty').style.display = seen.size ? 'none' : '';
+  }
+
+  async function scan(code) {
+    code = code.trim();
+    if (!code) return;
+    let r;
+    try {
+      const resp = await fetch(`/beheer/scannen/controle?store_id=${encodeURIComponent(storeId)}&code=${encodeURIComponent(code)}`,
+                               {credentials: 'same-origin'});
+      if (!resp.ok) throw new Error(resp.status);
+      r = await resp.json();
+    } catch (e) { beep('error'); show('error', 'Controle mislukt — is de verbinding weg?'); return; }
+    if (seen.has(r.id)) { beep('warn'); show('warn', `${r.id} is al gescand`); return; }
+    seen.set(r.id, r);
+    beep(r.status); show(r.status, r.message);
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${++n}</td><td>${r.kind === 'basestation' ? 'Basisstation' : 'Display'}</td><td><code></code></td>
+      <td><span class="badge ${r.status === 'ok' ? 'ok' : r.status === 'warn' ? 'warn' : 'err'}"></span></td>
+      <td><button type="button" class="secondary">Verwijderen</button></td>`;
+    tr.querySelector('code').textContent = r.id;
+    tr.querySelector('.badge').textContent = r.message;
+    if (r.status !== 'error') {
+      const hidden = document.createElement('input');
+      hidden.type = 'hidden'; hidden.name = 'code'; hidden.value = r.code;
+      tr.appendChild(hidden);
+    }
+    tr.querySelector('button').onclick = () => { seen.delete(r.id); tr.remove(); refresh(); input.focus(); };
+    const header = table.rows[0];
+    header.parentNode.insertBefore(tr, header.nextSibling);  // nieuwste bovenaan (rijen zitten in een <tbody>)
+    refresh();
+  }
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const v = input.value; input.value = '';
+      scan(v).catch(err => { beep('error'); show('error', 'Onverwachte fout: ' + err); });
+    }
+  });
+  document.getElementById('scanform').addEventListener('submit', e => {
+    if (confirmBtn.disabled) e.preventDefault();
+  });
+  document.addEventListener('click', e => { if (!e.target.closest('input,select,button,a,label,textarea')) input.focus(); });
+})();
+</script>
+{% endif %}
+{% endblock %}

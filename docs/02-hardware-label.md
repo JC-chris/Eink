@@ -69,6 +69,8 @@ Dit is het onderscheidende punt voor slagers/vis/bakkers t.o.v. gewone supermark
 - **IP65/IP67-behuizing**, condensvast (conformal coating op de PCB), afgeronde randen,
   bestand tegen chloor/alkalische reinigers (HACCP). Materiaal: PC of PC/ABS, voedselveilig
   (al is er geen direct voedselcontact). Pennen/houders voor in ijs (viswinkel) en prijsprikkers.
+- **Barcode + QR-code** op de achterkant (laser of label): `L:<BLE-adres>` met de tekst eronder,
+  voor scannen bij uitlevering en in de winkel (zie [managementsysteem](09-managementsysteem.md#barcodes-op-de-producten)).
 - Batterij vervangbaar zonder gereedschap, of (eenvoudiger + waterdicht) label gesloten en
   inruilen na 5 jaar.
 

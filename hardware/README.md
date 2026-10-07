@@ -25,7 +25,8 @@ Gerbers + BOM + pick-and-place naar `production/`.
 - [ ] NFC-antenne als PCB-spoel
 - [ ] RGB-LED zichtbaar door behuizing
 - [ ] Testpads: SWD, UART, VBAT, GND (raster passend op pogo-jig)
-- [ ] QR-code met label-ID op silkscreen/sticker
+- [ ] Barcode (Code 128) + QR-code `L:<BLE-adres>` met leesbare tekst, op behuizing of sticker
+      (productie: printen vanuit de fabriekslijst die ook op voorraad gaat)
 - [ ] Meetpunt voor slaapstroom (doel: < 3 µA)
 
 ## Checklist basisstation rev A
@@ -36,6 +37,7 @@ Gerbers + BOM + pick-and-place naar `production/`.
 - [ ] **Wi-Fi**: CM5-variant mét Wi-Fi, U.FL → externe dual-band antenne (2,4 + 5 GHz) van de goedgekeurde lijst
 - [ ] Antennes Wi-Fi en ESL ≥ 10–15 cm uit elkaar, orthogonaal; coexistence-meting in precompliance
 - [ ] Netvoedingsingang (USB-C PD of 12 V) voor plekken zonder PoE
+- [ ] Sticker met barcode/QR `B:<id>`, en daarnaast het wachtwoord van de webinterface en de hotspotgegevens
 - [ ] Reset-knop: kort = herstart, 10 s = netwerkinstellingen terug naar fabriek (hotspot aan)
 - [ ] Secure element (SE050) voor device-identiteit
 - [ ] Hardware-watchdog, RTC, status-LED's

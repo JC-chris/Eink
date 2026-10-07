@@ -6,7 +6,8 @@
   {% if store.service_state == 'suspended' %}<span class="badge err">uitgeschakeld</span>{% else %}<span class="badge ok">in dienst</span>{% endif %}
   <span class="badge">{{ 'prijzen via kassa' if store.price_source == 'pos' else 'prijzen via webinterface' }}</span>
 </h1>
-<p class="muted">Winkel-ID <code>{{ store.id }}</code>{% if customer %} · klant <a href="/beheer/klanten/{{ customer.id }}">{{ customer.name }}</a>{% endif %}</p>
+<p class="muted">Winkel-ID <code>{{ store.id }}</code>{% if customer %} · klant <a href="/beheer/klanten/{{ customer.id }}">{{ customer.name }}</a>{% endif %}
+  · <a href="/beheer/scannen?store_id={{ store.id }}">Levering / uitbreiding scannen</a></p>
 
 {% if secret %}
 <div class="secret"><strong>{{ secret[0] }}</strong> — wordt maar één keer getoond, kopieer hem nu:<br><code>{{ secret[1] }}</code></div>

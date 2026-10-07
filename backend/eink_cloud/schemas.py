@@ -249,5 +249,25 @@ class StockLabelOut(BaseModel):
     added_at: datetime
 
 
+class ShipmentIn(BaseModel):
+    store_id: str
+    codes: list[str] = Field(min_length=1, max_length=5000, description="gescande barcodes (basisstation en displays)")
+    pin: bool = Field(True, description="displays vast aan het gescande basisstation koppelen")
+    reference: str | None = Field(None, max_length=100, description="ordernummer")
+    new_display_type: str = Field("bwry_2_9", description="type voor displays die nog niet op voorraad stonden")
+
+
+class ShipmentOut(BaseModel):
+    id: int
+    customer_id: str | None
+    store_id: str
+    basestation_id: str | None
+    reference: str | None
+    pinned: bool
+    created_by: str
+    created_at: datetime
+    label_ids: list[str]
+
+
 class BaseStationAssignIn(BaseModel):
     store_id: str | None = Field(description="null = terug naar voorraad")

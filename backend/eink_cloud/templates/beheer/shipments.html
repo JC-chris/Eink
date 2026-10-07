@@ -1,0 +1,18 @@
+{% extends "beheer/base.html" %}
+{% block title %}Leveringen{% endblock %}
+{% block content %}
+<h1>Leveringen <a href="/beheer/scannen" style="font-size:14px; font-weight:normal">+ Nieuwe levering scannen</a></h1>
+<div class="card scroll">
+  <table>
+    <tr><th>#</th><th>Datum</th><th>Klant</th><th>Winkel</th><th>Referentie</th><th>Basisstation</th><th class="num">Displays</th><th>Door</th></tr>
+    {% for s, n, customer_name, store_name in rows %}
+    <tr><td><a href="/beheer/leveringen/{{ s.id }}">#{{ s.id }}</a></td><td>{{ s.created_at | dt }}</td>
+      <td>{% if s.customer_id %}<a href="/beheer/klanten/{{ s.customer_id }}">{{ customer_name }}</a>{% endif %}</td>
+      <td><a href="/beheer/winkels/{{ s.store_id }}">{{ store_name }}</a></td><td>{{ s.reference or '' }}</td>
+      <td>{{ s.basestation_id or '— (uitbreiding)' }}</td><td class="num">{{ n }}</td><td class="muted">{{ s.created_by }}</td></tr>
+    {% else %}
+    <tr><td colspan="8" class="muted">Nog geen leveringen.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

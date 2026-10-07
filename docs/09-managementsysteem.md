@@ -34,6 +34,50 @@ Eerste admin aanmaken op de server:
 EINK_DATABASE_URL=... python -m eink_cloud.cli create-operator anna --role admin
 ```
 
+## Scannen bij uitlevering (de dagelijkse werkwijze)
+
+Bestelt een klant een basisstation met een aantal displays, dan scan je bij het inpakken alle
+barcodes. Daarmee hangen ze aan elkaar en aan de klant. Bij een uitbreiding scan je alleen de
+nieuwe displays.
+
+1. Open **Scannen** en kies de klant/winkel. Bestaat de klant nog niet, maak hem dan eerst aan bij
+   *Klanten*.
+2. Scan het **basisstation** en daarna alle **displays**. Elke scan wordt direct gecontroleerd:
+
+   | Piep | Kleur | Betekenis |
+   |---|---|---|
+   | kort hoog | groen | in orde (voorraad, of nieuw display) |
+   | twee keer | oranje | al gescand, of hoort al bij deze winkel |
+   | laag lang | rood | hoort bij een andere klant, onbekend basisstation of geen geldige barcode |
+
+   De teller toont het aantal basisstations en displays, met een uitsplitsing per type. Dat is
+   handig om te controleren tegen de bestelling.
+3. Vul eventueel het **ordernummer** in en klik **Bevestigen en koppelen**. In één keer, alles of
+   niets:
+   - het basisstation wordt aan de winkel van de klant gekoppeld;
+   - de displays worden aan de winkel gekoppeld en (standaard) **vast aan het gescande basisstation**;
+   - displays die nog niet op voorraad stonden, worden aangemaakt met het gekozen type;
+   - er wordt een **levering** vastgelegd met een printbare **pakbon** (inhoud per type, alle
+     display-ID's, handtekeningvelden).
+4. **Uitbreiding** later: kies dezelfde winkel en scan alleen de nieuwe displays (geen
+   basisstation). Ze komen bij de klant met automatische basisstationkeuze. Elke levering staat op
+   de klantpagina, met een link naar de pakbon.
+
+Werkt met elke USB- of Bluetooth-barcodescanner in toetsenbordmodus (die typt de code en drukt op
+Enter). Een scanner-app of magazijnsysteem kan dezelfde stappen via de API doen:
+`GET /v1/manage/scan-check?store_id=&code=` per scan en `POST /v1/manage/shipments` om te bevestigen.
+
+### Barcodes op de producten
+
+| Product | Inhoud barcode (Code 128) / QR-code | Voorbeeld |
+|---|---|---|
+| Display | `L:` + BLE-adres (12 hex-tekens) | `L:C0FFEE100001` |
+| Basisstation | `B:` + basisstation-ID | `B:bs-0042` |
+
+Ook geaccepteerd: hetzelfde met `EINK:` ervoor (QR-code), een BLE-adres met of zonder `:`/`-`, en
+een bekend basisstation-ID zonder voorvoegsel. Druk de code ook als tekst af onder de barcode, zodat
+hij met de hand in te typen is als de scanner het niet doet.
+
 ## Displays en basisstations koppelen aan klant/winkel
 
 ```
@@ -85,6 +129,9 @@ Management-API voor voorraad en koppelen:
 | GET | `/v1/manage/stores/{id}/sightings` | Gehoorde, niet-gekoppelde labels |
 | POST | `/v1/manage/basestations` | Basisstation op voorraad (geeft token) |
 | POST | `/v1/manage/basestations/{id}/assign` | `{"store_id": "..."}` koppelen/verplaatsen, `null` = voorraad |
+| GET | `/v1/manage/scan-check?store_id=&code=` | Eén gescande barcode controleren (`ok` / `warn` / `error`) |
+| POST | `/v1/manage/shipments` | `{"store_id": "...", "codes": [...], "pin": true, "reference": "ORD-1"}` levering bevestigen |
+| GET | `/v1/manage/shipments?customer_id=` | Leveringen, met display-ID's |
 
 ## Abonnementen
 

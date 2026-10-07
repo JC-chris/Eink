@@ -132,6 +132,28 @@ class PriceSource:
     MANUAL = "manual"
 
 
+class Shipment(Base):
+    """Levering: wat er (gescand) naar welke klant/winkel is gegaan. Basis voor de pakbon."""
+
+    __tablename__ = "shipments"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    customer_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    store_id: Mapped[str] = mapped_column(ForeignKey("stores.id"))
+    basestation_id: Mapped[str | None] = mapped_column(String(64))
+    reference: Mapped[str | None] = mapped_column(String(100))  # ordernummer
+    pinned: Mapped[bool] = mapped_column(default=False)
+    created_by: Mapped[str] = mapped_column(String(100))
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
+class ShipmentItem(Base):
+    __tablename__ = "shipment_items"
+    shipment_id: Mapped[int] = mapped_column(ForeignKey("shipments.id"), primary_key=True)
+    item_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    kind: Mapped[str] = mapped_column(String(16))  # "basestation" of "label"
+    display_type: Mapped[str | None] = mapped_column(String(32))
+
+
 class LabelSighting(Base):
     """Label gehoord door een basisstation, maar (nog) niet aan diens winkel gekoppeld."""
 

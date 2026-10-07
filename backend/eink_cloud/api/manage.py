@@ -13,11 +13,11 @@ from fastapi import HTTPException
 from .. import inventory, management, subscriptions
 from ..auth import require_admin
 from ..db import get_session
-from ..models import AuditEntry, BaseStation, Customer, Label, Store, utcnow
+from ..models import AuditEntry, BaseStation, Customer, Label, Shipment, ShipmentItem, Store, utcnow
 from ..schemas import (
     AssignLabelsIn, AuditOut, BaseStationAssignIn, BaseStationCreate, BaseStationCreated, BaseStationStatus,
-    CancelBody, CustomerBase, CustomerCreate, CustomerOut, LabelIdsIn, PinIn, StockLabelOut, StockLabelsIn,
-    StockLabelsResult, SuspendBody,
+    CancelBody, CustomerBase, CustomerCreate, CustomerOut, LabelIdsIn, PinIn, ShipmentIn, ShipmentOut, StockLabelOut,
+    StockLabelsIn, StockLabelsResult, SuspendBody,
 )
 
 router = APIRouter(prefix="/v1/manage", tags=["management"], dependencies=[Depends(require_admin)])
@@ -185,3 +185,46 @@ def assign_basestation(bs_id: str, body: BaseStationAssignIn, who: str = Depends
     inventory.assign_basestation(session, bs, _store(session, body.store_id) if body.store_id else None, who)
     session.commit()
     return next(s for s in management.basestation_statuses(session, utcnow()) if s.id == bs_id)
+
+
+# --- leveringen (scannen bij uitlevering) -------------------------------------------------------
+
+
+def _shipment_out(session: Session, s: Shipment) -> ShipmentOut:
+    label_ids = list(session.scalars(select(ShipmentItem.item_id).where(
+        ShipmentItem.shipment_id == s.id, ShipmentItem.kind == "label").order_by(ShipmentItem.item_id)))
+    return ShipmentOut(id=s.id, customer_id=s.customer_id, store_id=s.store_id, basestation_id=s.basestation_id,
+                       reference=s.reference, pinned=s.pinned, created_by=s.created_by, created_at=s.created_at,
+                       label_ids=label_ids)
+
+
+@router.get("/scan-check")
+def scan_check(store_id: str, code: str, session: Session = Depends(get_session)):
+    """Eén gescande barcode controleren (voor een scanner-app): status ok | warn | error."""
+    return inventory.check_scan(session, code, _store(session, store_id))
+
+
+@router.post("/shipments", response_model=ShipmentOut, status_code=201)
+def create_shipment(body: ShipmentIn, who: str = Depends(actor), session: Session = Depends(get_session)):
+    """Gescande barcodes in één keer aan de winkel koppelen (basisstation + displays, of alleen displays bij
+    uitbreiding). Alles of niets: bij één fout wordt niets gekoppeld."""
+    s = inventory.create_shipment(session, _store(session, body.store_id), body.codes, who, body.pin, body.reference,
+                                  body.new_display_type)
+    session.commit()
+    return _shipment_out(session, s)
+
+
+@router.get("/shipments", response_model=list[ShipmentOut])
+def list_shipments(customer_id: str | None = None, session: Session = Depends(get_session)):
+    q = select(Shipment).order_by(Shipment.id.desc()).limit(500)
+    if customer_id:
+        q = q.where(Shipment.customer_id == customer_id)
+    return [_shipment_out(session, s) for s in session.scalars(q)]
+
+
+@router.get("/shipments/{shipment_id}", response_model=ShipmentOut)
+def get_shipment(shipment_id: int, session: Session = Depends(get_session)):
+    s = session.get(Shipment, shipment_id)
+    if s is None:
+        raise HTTPException(404, "levering onbekend")
+    return _shipment_out(session, s)

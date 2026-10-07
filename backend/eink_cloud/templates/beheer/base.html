@@ -64,6 +64,7 @@
     <a href="/beheer" class="{{ 'active' if path == '/beheer' }}">Dashboard</a>
     <a href="/beheer/klanten" class="{{ 'active' if path.startswith('/beheer/klanten') }}">Klanten</a>
     <a href="/beheer/basisstations" class="{{ 'active' if path.startswith('/beheer/basisstations') }}">Basisstations</a>
+    <a href="/beheer/scannen" class="{{ 'active' if path.startswith('/beheer/scannen') or path.startswith('/beheer/leveringen') }}">Scannen</a>
     <a href="/beheer/voorraad" class="{{ 'active' if path.startswith('/beheer/voorraad') }}">Voorraad</a>
     <a href="/beheer/storingen" class="{{ 'active' if path.startswith('/beheer/storingen') }}">Storingen</a>
     <a href="/beheer/audit" class="{{ 'active' if path.startswith('/beheer/audit') }}">Auditlog</a>

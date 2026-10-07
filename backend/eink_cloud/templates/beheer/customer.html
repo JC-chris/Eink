@@ -97,6 +97,19 @@
 </div>
 
 <div class="card scroll">
+  <h2>Leveringen <a href="/beheer/scannen{{ '?store_id=' ~ stores[0].store_id if stores | length == 1 }}" style="font-size:13px; font-weight:normal">+ scannen</a></h2>
+  <table>
+    <tr><th>#</th><th>Datum</th><th>Winkel</th><th>Referentie</th><th>Basisstation</th><th></th></tr>
+    {% for d in deliveries %}
+    <tr><td>#{{ d.id }}</td><td>{{ d.created_at | dt }}</td><td>{{ d.store_id }}</td><td>{{ d.reference or '' }}</td>
+      <td>{{ d.basestation_id or '— (uitbreiding)' }}</td><td><a href="/beheer/leveringen/{{ d.id }}">Pakbon</a></td></tr>
+    {% else %}
+    <tr><td colspan="6" class="muted">Nog geen leveringen.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+
+<div class="card scroll">
   <h2>Auditlog</h2>
   <table>
     <tr><th>Wanneer</th><th>Wie</th><th>Actie</th><th>Winkel</th><th>Details</th></tr>

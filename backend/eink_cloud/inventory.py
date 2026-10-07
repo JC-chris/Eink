@@ -9,6 +9,7 @@ Werkwijze:
 4. Retour/vervanging: **ontkoppelen** (terug naar voorraad) of verplaatsen naar een andere winkel.
 """
 
+import re
 from datetime import datetime, timedelta
 
 from fastapi import HTTPException
@@ -16,14 +17,22 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from .displays import DISPLAY_TYPES
-from .models import BaseStation, JobStatus, Label, LabelSighting, Store, UpdateJob, utcnow
+from .models import BaseStation, JobStatus, Label, LabelSighting, Shipment, ShipmentItem, Store, UpdateJob, utcnow
 from .subscriptions import audit
 
 SIGHTING_VALID = timedelta(days=1)  # zo lang telt "gehoord in deze winkel" als bewijs
 
 
+MAC_RE = re.compile(r"^([0-9A-F]{2}:){5}[0-9A-F]{2}$")
+
+
 def normalize_label_id(raw: str) -> str:
-    return raw.strip().upper()
+    """'c0ffee000001', 'C0-FF-EE-00-00-01' en 'C0:FF:EE:00:00:01' zijn hetzelfde label."""
+    text = raw.strip().upper()
+    hexonly = re.sub(r"[:\-\s]", "", text)
+    if len(hexonly) == 12 and re.fullmatch(r"[0-9A-F]{12}", hexonly):
+        return ":".join(hexonly[i:i + 2] for i in range(0, 12, 2))
+    return text
 
 
 def parse_label_list(text: str) -> list[str]:
@@ -189,3 +198,92 @@ def require_assigned(bs: BaseStation) -> str:
     if bs.store_id is None:
         raise HTTPException(409, "dit basisstation staat op voorraad en is nog niet aan een winkel gekoppeld")
     return bs.store_id
+
+
+# --- scannen bij uitlevering ---------------------------------------------------------------------
+#
+# Barcodes op de producten: "L:<mac>" voor een display en "B:<id>" voor een basisstation
+# (ook "EINK:L:..." / "EINK:B:..." in een QR-code). Zonder voorvoegsel wordt herkend wat het is.
+
+
+def parse_scan(session: Session, code: str) -> tuple[str, str]:
+    """Geeft (soort, id) terug: soort is "basestation" of "label"."""
+    text = code.strip()
+    upper = text.upper()
+    for prefix in ("EINK:",):
+        if upper.startswith(prefix):
+            text, upper = text[len(prefix):], upper[len(prefix):]
+    if upper.startswith(("B:", "BS:")):
+        return "basestation", text.split(":", 1)[1].strip()
+    if upper.startswith("L:"):
+        return "label", normalize_label_id(text[2:])
+    if session.get(BaseStation, text) is not None:
+        return "basestation", text
+    return "label", normalize_label_id(text)
+
+
+def check_scan(session: Session, code: str, store: Store) -> dict:
+    """Controle per gescande barcode, vóór het bevestigen. status: ok | warn | error."""
+    kind, item_id = parse_scan(session, code)
+    result = {"code": code, "kind": kind, "id": item_id, "display_type": None, "new": False}
+    if kind == "basestation":
+        bs = session.get(BaseStation, item_id)
+        if bs is None:
+            return result | {"status": "error", "message": f"Basisstation {item_id} onbekend — eerst op voorraad zetten "
+                                                            "(het token moet in de fabrieksconfig staan)"}
+        if bs.store_id is None:
+            return result | {"status": "ok", "message": f"Basisstation {item_id} (voorraad)"}
+        if bs.store_id == store.id:
+            return result | {"status": "warn", "message": f"Basisstation {item_id} is al van deze winkel"}
+        return result | {"status": "error", "message": f"Basisstation {item_id} hoort bij winkel {bs.store_id}"}
+    label = session.get(Label, item_id)
+    if label is None:
+        if not MAC_RE.match(item_id):
+            return result | {"status": "error", "message": f"'{code}' is geen geldige display-barcode"}
+        return result | {"status": "ok", "new": True, "message": f"Display {item_id} — nieuw, wordt op voorraad gezet"}
+    result["display_type"] = label.display_type
+    type_name = DISPLAY_TYPES[label.display_type].description if label.display_type in DISPLAY_TYPES else label.display_type
+    if label.store_id is None:
+        return result | {"status": "ok", "message": f"Display {item_id} · {type_name}"}
+    if label.store_id == store.id:
+        return result | {"status": "warn", "message": f"Display {item_id} is al van deze winkel"}
+    return result | {"status": "error", "message": f"Display {item_id} hoort bij winkel {label.store_id}"}
+
+
+def create_shipment(session: Session, store: Store, codes: list[str], actor: str, pin: bool = True,
+                    reference: str | None = None, new_display_type: str = "bwry_2_9") -> Shipment:
+    """Koppelt alles wat gescand is aan de winkel van de klant, in één keer (alles of niets)."""
+    _check_display_type(new_display_type)
+    checks = [check_scan(session, c, store) for c in dict.fromkeys(c.strip() for c in codes if c.strip())]
+    errors = [c["message"] for c in checks if c["status"] == "error"]
+    if errors:
+        raise HTTPException(409, "; ".join(errors))
+    stations = list(dict.fromkeys(c["id"] for c in checks if c["kind"] == "basestation"))
+    label_ids = list(dict.fromkeys(c["id"] for c in checks if c["kind"] == "label"))
+    if len(stations) > 1:
+        raise HTTPException(409, "scan per levering maximaal één basisstation (of maak twee leveringen)")
+    if not stations and not label_ids:
+        raise HTTPException(422, "niets gescand")
+    bs_id = stations[0] if stations else None
+
+    new = [c["id"] for c in checks if c["kind"] == "label" and c["new"]]
+    if new:
+        add_labels_to_stock(session, new, new_display_type, actor)
+        session.flush()
+    if bs_id:
+        assign_basestation(session, session.get(BaseStation, bs_id), store, actor)
+    if label_ids:
+        assign_labels(session, label_ids, store, actor, pinned_bs_id=bs_id if (pin and bs_id) else None)
+    shipment = Shipment(customer_id=store.customer_id, store_id=store.id, basestation_id=bs_id, reference=reference or None,
+                        pinned=bool(pin and bs_id and label_ids), created_by=actor)
+    session.add(shipment)
+    session.flush()
+    if bs_id:
+        session.add(ShipmentItem(shipment_id=shipment.id, item_id=bs_id, kind="basestation"))
+    types = dict(session.execute(select(Label.id, Label.display_type).where(Label.id.in_(label_ids))).all()) if label_ids else {}
+    for label_id in label_ids:
+        session.add(ShipmentItem(shipment_id=shipment.id, item_id=label_id, kind="label", display_type=types.get(label_id)))
+    audit(session, actor, "shipment_created", store.customer_id, store.id,
+          f"levering #{shipment.id}{' (' + reference + ')' if reference else ''}: "
+          f"{'basisstation ' + bs_id + ' + ' if bs_id else ''}{len(label_ids)} displays")
+    return shipment

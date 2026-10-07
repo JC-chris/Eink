@@ -5,13 +5,14 @@ bekijken en storingen oplossen (labels opnieuw versturen), maar niet aan contrac
 """
 
 import hmac
+import json
 import time
 from datetime import date, datetime
 from pathlib import Path
 from urllib.parse import quote, urlsplit
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -19,7 +20,7 @@ from sqlalchemy.orm import Session
 from .. import catalog, inventory, management, subscriptions
 from ..db import get_session
 from ..displays import DISPLAY_TYPES
-from ..models import Alert, AuditEntry, BaseStation, Customer, Label, Operator, Store, utcnow
+from ..models import Alert, AuditEntry, BaseStation, Customer, Label, Operator, Shipment, ShipmentItem, Store, utcnow
 from ..monitoring import evaluate_alerts, store_overview
 from ..schemas import CustomerCreate
 from ..security import hash_password, sign, verify_password
@@ -215,8 +216,10 @@ def customer_detail(customer_id: str, request: Request, op: Operator = Depends(c
     now = utcnow()
     stores = session.scalars(select(Store).where(Store.customer_id == c.id).order_by(Store.id)).all()
     log = session.scalars(select(AuditEntry).where(AuditEntry.customer_id == c.id).order_by(AuditEntry.id.desc()).limit(50)).all()
+    deliveries = session.scalars(select(Shipment).where(Shipment.customer_id == c.id).order_by(Shipment.id.desc())).all()
     return render(request, "customer.html", op, c=management.customer_out(session, c),
-                  stores=[store_overview(session, s, now) for s in stores], log=log, today=now.date())
+                  stores=[store_overview(session, s, now) for s in stores], log=log, today=now.date(),
+                  deliveries=deliveries)
 
 
 @router.post("/klanten/{customer_id}")
@@ -431,6 +434,70 @@ def basestation_assign(bs_id: str, store_id: str = Form(""), back: str = Form("/
     inventory.assign_basestation(session, bs, store, actor(op))
     session.commit()
     return redirect(back, msg=f"Basisstation {bs_id} " + (f"gekoppeld aan {store.name}" if store else "terug naar voorraad"))
+
+
+# --- scannen bij uitlevering ------------------------------------------------------------------
+
+
+@router.get("/scannen", response_class=HTMLResponse)
+def scan_page(request: Request, store_id: str = "", op: Operator = Depends(current_operator),
+              session: Session = Depends(get_session)):
+    """Barcodes van basisstation en displays scannen en in één keer aan de klant koppelen."""
+    store = session.get(Store, store_id) if store_id else None
+    stations = session.scalars(select(BaseStation).where(BaseStation.store_id == store.id)).all() if store else []
+    return render(request, "scan.html", op, store=store, stores=_store_choices(session), display_types=DISPLAY_TYPES,
+                  existing_stations=stations,
+                  display_types_json=json.dumps({d.id: d.description for d in DISPLAY_TYPES.values()}))
+
+
+@router.get("/scannen/controle")
+def scan_check(store_id: str, code: str, op: Operator = Depends(current_operator), session: Session = Depends(get_session)):
+    return JSONResponse(inventory.check_scan(session, code, _get_store(session, store_id)))
+
+
+@router.post("/scannen")
+def scan_confirm(store_id: str = Form(...), code: list[str] = Form(default=[]), codes_text: str = Form(""),
+                 pin: str = Form(""), reference: str = Form(""), new_display_type: str = Form("bwry_2_9"),
+                 op: Operator = Depends(current_operator), session: Session = Depends(get_session)):
+    store = _get_store(session, store_id)
+    codes = code + [c for c in codes_text.splitlines() if c.strip()]  # tekstvak = terugval zonder JavaScript
+    try:
+        shipment = inventory.create_shipment(session, store, codes, actor(op), pin=bool(pin),
+                                             reference=reference.strip()[:100] or None, new_display_type=new_display_type)
+        session.commit()
+    except HTTPException as exc:
+        session.rollback()
+        return redirect(f"/beheer/scannen?store_id={quote(store_id)}", err=str(exc.detail))
+    return redirect(f"/beheer/leveringen/{shipment.id}", msg="Levering geregistreerd en gekoppeld aan de klant")
+
+
+@router.get("/leveringen", response_class=HTMLResponse)
+def shipments(request: Request, op: Operator = Depends(current_operator), session: Session = Depends(get_session)):
+    rows = session.execute(
+        select(Shipment, func.count(ShipmentItem.item_id), Customer.name, Store.name)
+        .outerjoin(ShipmentItem, (ShipmentItem.shipment_id == Shipment.id) & (ShipmentItem.kind == "label"))
+        .outerjoin(Customer, Customer.id == Shipment.customer_id).join(Store, Store.id == Shipment.store_id)
+        .group_by(Shipment.id, Customer.name, Store.name).order_by(Shipment.id.desc()).limit(300)
+    ).all()
+    return render(request, "shipments.html", op, rows=rows)
+
+
+@router.get("/leveringen/{shipment_id}", response_class=HTMLResponse)
+def shipment_detail(shipment_id: int, request: Request, op: Operator = Depends(current_operator),
+                    session: Session = Depends(get_session)):
+    shipment = session.get(Shipment, shipment_id)
+    if shipment is None:
+        raise HTTPException(404, "levering onbekend")
+    items = session.scalars(select(ShipmentItem).where(ShipmentItem.shipment_id == shipment_id)
+                            .order_by(ShipmentItem.kind, ShipmentItem.item_id)).all()
+    labels = [i for i in items if i.kind == "label"]
+    per_type: dict[str, int] = {}
+    for i in labels:
+        per_type[i.display_type or "?"] = per_type.get(i.display_type or "?", 0) + 1
+    return render(request, "shipment.html", op, s=shipment, labels=labels, per_type=per_type,
+                  store=session.get(Store, shipment.store_id),
+                  customer=session.get(Customer, shipment.customer_id) if shipment.customer_id else None,
+                  display_types=DISPLAY_TYPES)
 
 
 # --- voorraad ---------------------------------------------------------------------------------
