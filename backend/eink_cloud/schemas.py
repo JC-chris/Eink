@@ -11,12 +11,28 @@ Unit = Literal["st", "kg", "100g", "l", "pak"]
 class StoreCreate(BaseModel):
     id: str = Field(pattern=r"^[a-z0-9-]{2,64}$", examples=["slagerij-jansen"])
     name: str
+    price_source: Literal["pos", "manual"] = "pos"
+
+
+PriceSourceT = Literal["pos", "manual"]
 
 
 class StoreCreated(BaseModel):
     id: str
     name: str
     api_key: str
+    price_source: PriceSourceT
+
+
+class StoreSettings(BaseModel):
+    price_source: PriceSourceT = Field(description="pos = kassa via API, manual = webinterface basisstation")
+
+
+class StoreInfo(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    name: str
+    price_source: PriceSourceT
 
 
 class BaseStationCreate(BaseModel):

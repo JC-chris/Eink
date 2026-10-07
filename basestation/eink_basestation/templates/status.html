@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Status{% endblock %}
+{% block content %}
+<h1>Status {% include "_price_source.html" %}</h1>
+{% if not configured %}
+  <div class="flash err">Dit basisstation is nog niet met de cloud verbonden. Vul server en token in bij <a href="/instellingen">Instellingen</a>.</div>
+{% endif %}
+<div class="card grid">
+  <div class="stat">
+    <div class="v">{% if agent.cloud_ok %}<span class="badge ok">Verbonden</span>{% else %}<span class="badge err">Geen verbinding</span>{% endif %}</div>
+    <div class="k">Cloud {% if agent.last_contact %}· laatst {{ agent.last_contact.strftime('%H:%M:%S') }}{% endif %}</div>
+  </div>
+  <div class="stat"><div class="v">{{ agent.labels_seen | length }}</div><div class="k">Labels in bereik</div></div>
+  <div class="stat"><div class="v">{{ agent.jobs_ok }}</div><div class="k">Updates gelukt (sinds start)</div></div>
+  <div class="stat"><div class="v">{{ agent.jobs_failed }}</div><div class="k">Updates mislukt (sinds start)</div></div>
+  <div class="stat"><div class="v">{{ (uptime_s // 3600) }} u {{ (uptime_s % 3600) // 60 }} m</div><div class="k">In bedrijf</div></div>
+</div>
+{% if agent.last_error %}<div class="card"><h2>Laatste fout</h2><code>{{ agent.last_error }}</code></div>{% endif %}
+{% if cloud_err %}<div class="card"><h2>Cloud</h2><code>{{ cloud_err }}</code></div>{% endif %}
+{% if store %}
+<div class="card">
+  <h2>{{ store.name }}</h2>
+  <p class="muted">
+  {% if store.price_source == 'pos' %}
+    Prijzen komen uit het kassasysteem. Geen kassakoppeling? Schakel om naar de webinterface bij <a href="/instellingen">Instellingen</a>.
+  {% else %}
+    Prijzen worden beheerd in deze webinterface, onder <a href="/producten">Producten</a>.
+  {% endif %}
+  </p>
+</div>
+{% endif %}
+{% endblock %}

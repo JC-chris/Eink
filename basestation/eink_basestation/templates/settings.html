@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Instellingen{% endblock %}
+{% block content %}
+<h1>Instellingen</h1>
+
+<div class="card">
+  <h2>Prijsbron</h2>
+  {% if store %}
+  <form method="post" action="/instellingen/prijsbron">
+    <label class="choice"><input type="radio" name="price_source" value="pos" {{ 'checked' if store.price_source == 'pos' }}>
+      <span><strong>Kassasysteem</strong><br><span class="muted">Prijzen komen automatisch uit de kassa of weegschaal. Wijzigen in deze webinterface is uitgeschakeld.</span></span></label>
+    <label class="choice"><input type="radio" name="price_source" value="manual" {{ 'checked' if store.price_source == 'manual' }}>
+      <span><strong>Webinterface</strong><br><span class="muted">Geen kassakoppeling: producten en prijzen beheert u zelf onder Producten. Updates vanuit de kassa worden dan geweigerd.</span></span></label>
+    <button>Opslaan</button>
+  </form>
+  {% else %}
+  <p class="muted">Beschikbaar zodra de cloudverbinding werkt.{% if cloud_err %} <code>{{ cloud_err }}</code>{% endif %}</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Cloudverbinding</h2>
+  <form method="post" action="/instellingen/cloud">
+    <div class="row">
+      <div><label for="server">Server</label><input id="server" name="server" value="{{ config.server }}" required></div>
+      <div><label for="token">Token basisstation</label>
+        <input id="token" name="token" type="password" autocomplete="off" placeholder="{{ 'ingesteld — leeg laten om te behouden' if config.token else 'nog niet ingesteld' }}"></div>
+    </div>
+    <button>Opslaan</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Wachtwoord webinterface</h2>
+  <form method="post" action="/instellingen/wachtwoord">
+    <div class="row">
+      <div><label for="current">Huidig</label><input id="current" name="current" type="password" autocomplete="current-password" required></div>
+      <div><label for="new">Nieuw (min. 8 tekens)</label><input id="new" name="new" type="password" autocomplete="new-password" minlength="8" required></div>
+      <div><label for="repeat">Herhaal nieuw</label><input id="repeat" name="repeat" type="password" autocomplete="new-password" minlength="8" required></div>
+    </div>
+    <button>Wachtwoord wijzigen</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Apparaat</h2>
+  <table>
+    <tr><td class="muted">Hostnaam</td><td>{{ hostname }}</td></tr>
+    <tr><td class="muted">IP-adres(sen)</td><td>{{ ips | join(', ') or 'onbekend' }}</td></tr>
+    <tr><td class="muted">Software</td><td>{{ version }}</td></tr>
+    <tr><td class="muted">In bedrijf</td><td>{{ uptime_s // 3600 }} u {{ (uptime_s % 3600) // 60 }} m</td></tr>
+  </table>
+</div>
+{% endblock %}

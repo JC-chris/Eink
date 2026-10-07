@@ -18,6 +18,8 @@ class Store(Base):
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     name: Mapped[str] = mapped_column(String(200))
     api_key: Mapped[str] = mapped_column(String(64), unique=True)
+    # Wie de prijzen beheert: "pos" (kassa via API) of "manual" (webinterface basisstation).
+    price_source: Mapped[str] = mapped_column(String(16), default="pos")
 
 
 class BaseStation(Base):
@@ -61,6 +63,11 @@ class Label(Base):
     firmware_version: Mapped[str | None] = mapped_column(String(32))
     expected_crc: Mapped[int | None]
     displayed_crc: Mapped[int | None]
+
+
+class PriceSource:
+    POS = "pos"
+    MANUAL = "manual"
 
 
 class JobStatus:

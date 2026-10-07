@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Labels{% endblock %}
+{% block content %}
+<h1>Labels {% include "_price_source.html" %}</h1>
+{% if store %}
+  {% if new_labels %}
+  <div class="card scroll">
+    <h2>Nieuwe labels in bereik</h2>
+    <table>
+      <tr><th>Label</th><th>Signaal</th><th>Batterij</th><th>Displaytype</th></tr>
+      {% for l in new_labels %}
+      <tr>
+        <td><code>{{ l.label_id }}</code></td><td>{{ l.rssi }} dBm</td><td>{{ l.battery_mv }} mV</td>
+        <td>
+          <form method="post" action="/labels/registreren" class="inline">
+            <input type="hidden" name="label_id" value="{{ l.label_id }}">
+            <select name="display_type">{% for d in display_types %}<option value="{{ d.id }}" {{ 'selected' if d.id == default_display_type }}>{{ d.description }}</option>{% endfor %}</select>
+            <button>Registreren</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endif %}
+  <div class="card scroll">
+    <h2>Geregistreerde labels</h2>
+    <table>
+      <tr><th>Label</th><th>Beeld</th><th>Product</th><th>Status</th><th>Batterij</th><th>Signaal</th><th></th></tr>
+      {% for l in labels %}
+      <tr>
+        <td><code>{{ l.id }}</code><br><span class="muted">{{ l.display_type }}</span></td>
+        <td>{% if l.product_sku %}<a href="/labels/{{ l.id }}/preview.png" target="_blank"><img class="preview" src="/labels/{{ l.id }}/preview.png" alt="voorbeeld"></a>{% endif %}</td>
+        <td>
+          <form method="post" action="/labels/{{ l.id }}/koppelen" class="inline">
+            <select name="sku">
+              <option value="">— niet gekoppeld —</option>
+              {% for p in products %}<option value="{{ p.sku }}" {{ 'selected' if p.sku == l.product_sku }}>{{ p.sku }} · {{ p.name }}</option>{% endfor %}
+            </select>
+            <button class="secondary">Koppelen</button>
+          </form>
+        </td>
+        <td>
+          {% if l.in_sync %}<span class="badge ok">Actueel</span>
+          {% elif l.expected_crc is none %}<span class="badge">Leeg</span>
+          {% else %}<span class="badge warn">Wordt bijgewerkt</span>{% endif %}
+          {% if not l.last_seen %}<br><span class="badge err">Nooit gezien</span>{% endif %}
+        </td>
+        <td>{{ l.battery_mv ~ ' mV' if l.battery_mv }}</td>
+        <td>{{ l.rssi ~ ' dBm' if l.rssi }}</td>
+        <td>{% if l.product_sku %}<form method="post" action="/labels/{{ l.id }}/opnieuw" class="inline"><button class="secondary">Opnieuw sturen</button></form>{% endif %}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="muted">Nog geen labels geregistreerd.</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+{% endif %}
+{% endblock %}

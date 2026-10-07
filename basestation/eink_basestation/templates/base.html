@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Basisstation{% endblock %} · Eink</title>
+<style>
+  :root { --bg:#f5f5f2; --card:#fff; --text:#1d1d1b; --muted:#6b6b66; --line:#e2e2dc; --accent:#b3261e; --ok:#1e7a3c; --warn:#a86a00; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--text); }
+  header { background:var(--text); color:#fff; padding:0 16px; display:flex; flex-wrap:wrap; align-items:center; gap:4px 16px; }
+  header .brand { font-weight:700; padding:12px 0; margin-right:8px; }
+  header nav { display:flex; gap:4px; flex:1; }
+  header nav a { color:#ddd; text-decoration:none; padding:12px 10px; border-bottom:3px solid transparent; }
+  header nav a.active, header nav a:hover { color:#fff; border-bottom-color:var(--accent); }
+  header form { margin:0; }
+  header button { background:none; border:1px solid #666; color:#ddd; padding:4px 10px; }
+  main { max-width:1100px; margin:0 auto; padding:16px; }
+  h1 { font-size:22px; margin:8px 0 16px; }
+  h2 { font-size:17px; margin:0 0 12px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:16px; margin-bottom:16px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px; }
+  .stat .v { font-size:22px; font-weight:700; }
+  .stat .k { color:var(--muted); font-size:13px; }
+  .flash { padding:10px 14px; border-radius:6px; margin-bottom:16px; }
+  .flash.ok { background:#e5f4ea; color:var(--ok); }
+  .flash.err { background:#fbe9e7; color:var(--accent); }
+  .badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:12px; font-weight:600; background:#eee; }
+  .badge.ok { background:#e5f4ea; color:var(--ok); } .badge.err { background:#fbe9e7; color:var(--accent); } .badge.warn { background:#fff3dc; color:var(--warn); }
+  table { width:100%; border-collapse:collapse; }
+  th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  th { font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; }
+  .scroll { overflow-x:auto; }
+  label { display:block; font-size:13px; color:var(--muted); margin-bottom:4px; }
+  input, select, button { font:inherit; padding:8px 10px; border:1px solid #c9c9c2; border-radius:6px; background:#fff; color:var(--text); }
+  input, select { width:100%; }
+  button { cursor:pointer; background:var(--text); color:#fff; border-color:var(--text); }
+  button.secondary { background:#fff; color:var(--text); }
+  .row { display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:12px; margin-bottom:12px; }
+  .inline { display:flex; gap:6px; align-items:center; margin:0; }
+  .inline select { width:auto; min-width:140px; }
+  .muted { color:var(--muted); }
+  .preview { height:64px; display:block; border:1px solid var(--line); image-rendering:pixelated; }
+  .choice { display:flex; gap:10px; align-items:flex-start; padding:12px; border:1px solid var(--line); border-radius:6px; margin-bottom:8px; cursor:pointer; color:var(--text); font-size:15px; }
+  .choice input { width:auto; margin-top:4px; }
+  @media (max-width: 640px) {
+    header .brand { flex:1; }
+    header nav { order:3; flex-basis:100%; overflow-x:auto; white-space:nowrap; }
+    .grid { grid-template-columns:repeat(2, 1fr); }
+  }
+  code { background:#f0f0ea; padding:1px 5px; border-radius:4px; }
+</style>
+</head>
+<body>
+{% block header %}
+<header>
+  <div class="brand">Eink basisstation</div>
+  <nav>
+    <a href="/" class="{{ 'active' if path == '/' }}">Status</a>
+    <a href="/producten" class="{{ 'active' if path.startswith('/producten') }}">Producten</a>
+    <a href="/labels" class="{{ 'active' if path.startswith('/labels') }}">Labels</a>
+    <a href="/instellingen" class="{{ 'active' if path.startswith('/instellingen') }}">Instellingen</a>
+  </nav>
+  <form method="post" action="/logout"><button>Uitloggen</button></form>
+</header>
+{% endblock %}
+<main>
+  {% if msg %}<div class="flash ok">{{ msg }}</div>{% endif %}
+  {% if err %}<div class="flash err">{{ err }}</div>{% endif %}
+  {% block content %}{% endblock %}
+  <p class="muted" style="font-size:12px">Software {{ version }}</p>
+</main>
+</body>
+</html>

@@ -55,6 +55,35 @@ eigen carrier-board ontwerpen.
 De radio is een interface (`RadioBackend`). Er is een `SimulatedRadio` voor ontwikkeling en tests;
 `NordicEslRadio` is de plek voor de echte UART-koppeling met de nRF54L15.
 
+## Webinterface (lokaal, in het winkelnetwerk)
+
+Elk basisstation heeft een eigen webinterface op `http://<ip-basisstation>:8080`, te gebruiken
+op pc, tablet of telefoon:
+
+| Pagina | Wat |
+|---|---|
+| **Status** | Cloudverbinding, labels in bereik, gelukte/mislukte updates, laatste fout |
+| **Producten** | Producten en prijzen beheren (alleen in modus *webinterface*; anders alleen-lezen) |
+| **Labels** | Nieuwe labels in bereik registreren, koppelen aan een product, preview, opnieuw sturen |
+| **Instellingen** | **Prijsbron** (kassa ↔ webinterface), cloudserver + token, wachtwoord, apparaatinfo |
+
+**Prijsbron omschakelen.** Een winkel zonder kassakoppeling zet de prijsbron op *Webinterface*
+en beheert prijzen dan zelf. Om te voorkomen dat kassa en webinterface elkaars prijzen
+overschrijven, weigert de cloud in die modus prijsupdates vanuit de kassa (HTTP 409), en
+andersom. Labels koppelen kan in beide modi.
+
+De webinterface praat via het token van het basisstation met de cloud; de cloud blijft de bron
+van waarheid, zodat monitoring en support exact zien wat de winkel ziet.
+
+**Beveiliging** (EN 18031): geen standaardwachtwoord — elk apparaat krijgt een eigen wachtwoord
+(in productie op de sticker; bij eerste start zonder config wordt er een gegenereerd en gelogd).
+Wachtwoord als PBKDF2-hash, sessiecookie `HttpOnly` + `SameSite=Strict`, herkomstcontrole op
+formulieren, sessies vervallen na wachtwoordwijziging. Later: HTTPS met apparaatcertificaat.
+
+**Beperking (nog te bouwen):** de webinterface heeft internet nodig, omdat de cloud de beelden
+rendert. Volgende stap: rendering en een wachtrij lokaal op het basisstation, zodat prijswijzigingen
+ook tijdens een internetstoring direct op de labels komen en later worden gesynchroniseerd.
+
 ## Installatie in de winkel
 
 - Plafond- of wandmontage centraal boven de verkoopvloer; bij koelcellen/vitrines: zicht op de

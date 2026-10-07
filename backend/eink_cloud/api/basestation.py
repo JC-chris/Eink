@@ -1,15 +1,24 @@
-"""API voor basisstations: heartbeat, jobs ophalen, resultaten terugmelden."""
+"""API voor basisstations: heartbeat, jobs, resultaten — en de lokale webinterface.
+
+De webinterface op het basisstation gebruikt de /v1/basestation/store/...-endpoints met het
+token van het basisstation. Zo hoeft de winkel geen kassakoppeling te hebben.
+"""
 
 import base64
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
+from .. import catalog
 from ..auth import require_basestation
 from ..db import get_session
+from ..displays import DISPLAY_TYPES
 from ..jobs import claim_jobs, record_result
-from ..models import BaseStation, Label, UpdateJob, utcnow
-from ..schemas import Heartbeat, JobOut, JobResult, LabelTelemetry
+from ..models import BaseStation, Label, PriceSource, Store, UpdateJob, utcnow
+from ..schemas import (
+    Heartbeat, JobOut, JobResult, LabelCreate, LabelLink, LabelOut, LabelTelemetry, ProductIn, ProductOut,
+    ProductUpdateResult, StoreInfo, StoreSettings,
+)
 
 router = APIRouter(prefix="/v1/basestation", tags=["basisstation"])
 
@@ -55,3 +64,72 @@ def post_result(job_id: int, body: JobResult, bs: BaseStation = Depends(require_
     record_result(session, job, body.success, body.displayed_crc, body.error)
     session.commit()
     return {"status": job.status}
+
+
+# --- Webinterface basisstation -------------------------------------------------------------
+
+
+def station_store(bs: BaseStation = Depends(require_basestation), session: Session = Depends(get_session)) -> Store:
+    return session.get(Store, bs.store_id)
+
+
+@router.get("/store", response_model=StoreInfo)
+def get_store(store: Store = Depends(station_store)):
+    return store
+
+
+@router.put("/store/settings", response_model=StoreInfo)
+def update_store_settings(body: StoreSettings, store: Store = Depends(station_store), session: Session = Depends(get_session)):
+    """Omschakelen tussen kassa en webinterface als bron van de prijzen."""
+    store.price_source = body.price_source
+    session.commit()
+    return store
+
+
+@router.get("/display-types")
+def display_types():
+    return [{"id": d.id, "description": d.description} for d in DISPLAY_TYPES.values()]
+
+
+@router.get("/store/products", response_model=list[ProductOut])
+def list_products(store: Store = Depends(station_store), session: Session = Depends(get_session)):
+    return catalog.list_products(session, store)
+
+
+@router.put("/store/products/{sku}", response_model=ProductUpdateResult)
+def upsert_product(sku: str, body: ProductIn, store: Store = Depends(station_store), session: Session = Depends(get_session)):
+    catalog.require_price_source(store, PriceSource.MANUAL)
+    result = catalog.upsert_product(session, store, sku, body)
+    session.commit()
+    return result
+
+
+@router.get("/store/labels", response_model=list[LabelOut])
+def list_labels(store: Store = Depends(station_store), session: Session = Depends(get_session)):
+    return catalog.list_labels(session, store)
+
+
+@router.post("/store/labels", response_model=LabelOut, status_code=201)
+def register_label(body: LabelCreate, store: Store = Depends(station_store), session: Session = Depends(get_session)):
+    label = catalog.register_label(session, store, body)
+    session.commit()
+    return catalog.label_out(label)
+
+
+@router.put("/store/labels/{label_id}/product", response_model=LabelOut)
+def link_label(label_id: str, body: LabelLink, store: Store = Depends(station_store), session: Session = Depends(get_session)):
+    label = catalog.link_label(session, store, label_id, body.sku)
+    session.commit()
+    return catalog.label_out(label)
+
+
+@router.post("/store/labels/{label_id}/refresh", response_model=LabelOut)
+def refresh_label(label_id: str, store: Store = Depends(station_store), session: Session = Depends(get_session)):
+    label = catalog.refresh_label(session, store, label_id)
+    session.commit()
+    return catalog.label_out(label)
+
+
+@router.get("/store/labels/{label_id}/preview.png", response_class=Response)
+def preview(label_id: str, store: Store = Depends(station_store), session: Session = Depends(get_session)):
+    return Response(catalog.preview_png(session, store, label_id), media_type="image/png")

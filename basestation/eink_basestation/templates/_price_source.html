@@ -1,0 +1,7 @@
+{% if store %}
+  {% if store.price_source == 'pos' %}
+    <span class="badge">Prijzen via kassa</span>
+  {% else %}
+    <span class="badge warn">Prijzen via webinterface</span>
+  {% endif %}
+{% endif %}

@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Inloggen{% endblock %}
+{% block header %}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:360px; margin:15vh auto 0">
+  <h1>Eink basisstation</h1>
+  <form method="post" action="/login">
+    <label for="password">Wachtwoord <span class="muted">(zie sticker op het basisstation)</span></label>
+    <input id="password" name="password" type="password" autocomplete="current-password" autofocus required>
+    <p><button style="width:100%">Inloggen</button></p>
+  </form>
+</div>
+{% endblock %}

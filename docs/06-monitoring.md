@@ -38,6 +38,9 @@ Alerts sluiten zichzelf zodra het probleem weg is.
    basisstation herstarten, remote tunnel openen, firmware-update uitrollen.
 4. Pas daarna: winkel bellen of monteur sturen.
 
+Ter plekke kan de winkel (of een monteur) dezelfde status zien in de **webinterface van het
+basisstation** (zie [basisstation](03-basisstation.md#webinterface-lokaal-in-het-winkelnetwerk)).
+
 ## Later
 
 - Batterij-voorspelling (trend in mV → "vervangen over ~3 maanden").

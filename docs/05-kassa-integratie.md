@@ -28,6 +28,10 @@ Alle labels die aan SKU `1001` gekoppeld zijn worden automatisch opnieuw gerende
 Ongewijzigde producten veroorzaken géén radioverkeer (de CRC is dan gelijk) — dat spaart batterij,
 dus de kassa mag gerust periodiek alles opnieuw sturen.
 
+Staat de winkel op prijsbron **webinterface** (zie [basisstation](03-basisstation.md#webinterface-lokaal-in-het-winkelnetwerk)),
+dan antwoordt dit endpoint met **409 Conflict**: de prijzen worden dan in de winkel zelf beheerd.
+De huidige modus is op te vragen met `GET /v1/stores/{winkel}` (`price_source`: `pos` of `manual`).
+
 ## Bulk (bv. elke ochtend of na prijswijziging in de weegschaal)
 
 ```http
@@ -51,7 +55,7 @@ GET  /v1/stores/slagerij-jansen/labels/C0:FF:EE:00:00:01/preview.png → exact b
 | Moderne kassa (Lightspeed, Shopify POS, eigen kassa) | Direct de REST-API, of een kleine connector die hun webhook ("product gewijzigd") vertaalt naar `PUT /products/{sku}` |
 | Slager/bakker met **weegschaal-kassa** (Bizerba, Mettler Toledo, Dibal, Digi) | Weegschaalsoftware exporteert PLU-bestand (CSV/XML) → **importer** (fase 2) via SFTP of een map op het basisstation |
 | Supermarkt met ERP/HQ-prijzen | Nachtelijke batch + losse updates bij acties |
-| Geen koppeling | Webportaal/app waarin de winkel zelf prijzen aanpast |
+| Geen koppeling | **Webinterface op het basisstation** (prijsbron *webinterface*): winkel beheert zelf producten en prijzen |
 
 ## Prijsaanduiding (wettelijk)
 

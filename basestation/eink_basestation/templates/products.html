@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Producten{% endblock %}
+{% block content %}
+<h1>Producten {% include "_price_source.html" %}</h1>
+{% if store %}
+  {% set manual = store.price_source == 'manual' %}
+  {% if manual %}
+  <div class="card">
+    <h2>{{ 'Product bewerken' if editing else 'Product toevoegen' }}</h2>
+    <form method="post" action="/producten">
+      <div class="row">
+        <div><label for="sku">Artikelnummer / PLU</label>
+          <input id="sku" name="sku" required maxlength="64" value="{{ editing.sku if editing }}" {{ 'readonly' if editing }}></div>
+        <div style="grid-column: span 2"><label for="name">Naam</label>
+          <input id="name" name="name" required maxlength="200" value="{{ editing.name if editing }}"></div>
+      </div>
+      <div class="row">
+        <div><label for="price">Prijs (€)</label>
+          <input id="price" name="price" required inputmode="decimal" placeholder="12,95" value="{{ editing.price_cents | euro_input if editing }}"></div>
+        <div><label for="unit">Eenheid</label>
+          <select id="unit" name="unit">
+            {% for k, v in units.items() %}<option value="{{ k }}" {{ 'selected' if editing and editing.unit == k }}>{{ v }}</option>{% endfor %}
+          </select></div>
+        <div><label for="unit_price">Prijs per kg (voorverpakt)</label>
+          <input id="unit_price" name="unit_price" inputmode="decimal" placeholder="optioneel" value="{{ editing.unit_price_cents | euro_input if editing }}"></div>
+      </div>
+      <div class="row">
+        <div><label for="origin">Herkomst</label>
+          <input id="origin" name="origin" maxlength="100" placeholder="bv. Nederland" value="{{ editing.origin or '' if editing }}"></div>
+        <div><label for="promo_text">Actietekst (geel/rood)</label>
+          <input id="promo_text" name="promo_text" maxlength="100" placeholder="bv. Weekaanbieding" value="{{ editing.promo_text or '' if editing }}"></div>
+      </div>
+      <button>Opslaan</button>
+      {% if editing %}<a href="/producten" style="margin-left:8px">Annuleren</a>{% endif %}
+    </form>
+  </div>
+  {% else %}
+  <div class="flash err" style="background:#fff3dc;color:#7a4d00">
+    Prijzen komen uit de kassa en zijn hier alleen te bekijken. Geen kassakoppeling? Schakel om bij <a href="/instellingen">Instellingen</a>.
+  </div>
+  {% endif %}
+  <div class="card scroll">
+    <table>
+      <tr><th>Artikel</th><th>Naam</th><th>Prijs</th><th>Per kg</th><th>Herkomst</th><th>Actie</th><th></th></tr>
+      {% for p in products %}
+      <tr>
+        <td>{{ p.sku }}</td><td>{{ p.name }}</td>
+        <td><strong>{{ p.price_cents | euro }}</strong>{% if p.unit != 'st' %} /{{ p.unit }}{% endif %}</td>
+        <td>{{ p.unit_price_cents | euro }}</td><td>{{ p.origin or '' }}</td><td>{{ p.promo_text or '' }}</td>
+        <td>{% if manual %}<a href="/producten?edit={{ p.sku | urlencode }}">Bewerken</a>{% endif %}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="muted">Nog geen producten.</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+{% endif %}
+{% endblock %}

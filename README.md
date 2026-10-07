@@ -19,7 +19,7 @@ en op afstand wordt gemonitord.
 |---|---|
 | [`docs/`](docs/) | Ontwerp: architectuur, hardware, basisstation, radioprotocol, kassa-API, monitoring, certificering, roadmap |
 | [`backend/`](backend/) | Cloud-backend (Python/FastAPI): kassa-API, label-rendering, job-dispatch, monitoring & alerts — **werkend, met tests** |
-| [`basestation/`](basestation/) | Agent die op het basisstation draait; inclusief **radio-simulator** zodat alles zonder hardware te testen is |
+| [`basestation/`](basestation/) | Agent + **lokale webinterface** op het basisstation (status, instellingen, prijzen beheren zonder kassa); inclusief **radio-simulator** zodat alles zonder hardware te testen is |
 | [`firmware/`](firmware/) | Label-firmware: beeldformaat (C-header) en decoder; plan voor Zephyr/nRF Connect SDK |
 | [`hardware/`](hardware/) | Eisen en blokschema's voor label-PCB en basisstation-PCB, eerste BOM-schatting |
 
@@ -50,6 +50,18 @@ python scripts/demo.py
 Of als losse services:
 
 ```bash
+# cloud
 EINK_ADMIN_TOKEN=geheim uvicorn eink_cloud.main:app --app-dir backend --reload
 # API-documentatie: http://localhost:8000/docs
+
+# winkel + basisstation aanmaken (prijsbron "manual" = zonder kassa, via webinterface)
+curl -XPOST localhost:8000/v1/admin/stores -H 'Authorization: Bearer geheim' -H 'content-type: application/json' \
+     -d '{"id":"slagerij-jansen","name":"Slagerij Jansen","price_source":"manual"}'
+curl -XPOST localhost:8000/v1/admin/stores/slagerij-jansen/basestations -H 'Authorization: Bearer geheim' \
+     -H 'content-type: application/json' -d '{"id":"bs-1"}'          # → token
+
+# basisstation met gesimuleerde labels; webinterface op http://localhost:8080
+cd basestation && python -m eink_basestation.agent --config ./config.json \
+     --server http://localhost:8000 --token <token> --simulate C0:FF:EE:00:00:01 C0:FF:EE:00:00:02
+# het eerste wachtwoord van de webinterface staat in de log
 ```
