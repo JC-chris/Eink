@@ -1,6 +1,6 @@
 """Kassa-API: producten/prijzen bijwerken en labels koppelen."""
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy.orm import Session
 
 from .. import catalog
@@ -53,8 +53,10 @@ def get_product(sku: str, store: Store = Depends(require_store), session: Sessio
 
 
 @router.post("/labels", response_model=LabelOut, status_code=201)
-def register_label(body: LabelCreate, store: Store = Depends(require_store), session: Session = Depends(get_session)):
-    label = catalog.register_label(session, store, body)
+def register_label(body: LabelCreate, request: Request, store: Store = Depends(require_store),
+                   session: Session = Depends(get_session)):
+    """Label registreren. Labels uit onze voorraad alleen als een basisstation van deze winkel ze hoort."""
+    label = catalog.register_label(session, store, body, request.app.state.require_inventory)
     session.commit()
     return catalog.label_out(label)
 

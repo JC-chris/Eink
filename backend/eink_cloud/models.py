@@ -82,7 +82,7 @@ class Store(Base):
 class BaseStation(Base):
     __tablename__ = "basestations"
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    store_id: Mapped[str] = mapped_column(ForeignKey("stores.id"))
+    store_id: Mapped[str | None] = mapped_column(ForeignKey("stores.id"))  # None = op voorraad
     token: Mapped[str] = mapped_column(String(64), unique=True)
     last_seen: Mapped[datetime | None]
     software_version: Mapped[str | None] = mapped_column(String(32))
@@ -110,10 +110,14 @@ class Product(Base):
 class Label(Base):
     __tablename__ = "labels"
     id: Mapped[str] = mapped_column(String(32), primary_key=True)  # BLE-adres
-    store_id: Mapped[str] = mapped_column(ForeignKey("stores.id"))
+    store_id: Mapped[str | None] = mapped_column(ForeignKey("stores.id"), index=True)  # None = op voorraad
     display_type: Mapped[str] = mapped_column(String(32))
     product_sku: Mapped[str | None] = mapped_column(String(64))
+    # Via welk basisstation het label het laatst gehoord is (automatisch)...
     basestation_id: Mapped[str | None] = mapped_column(ForeignKey("basestations.id"))
+    # ...of vast gekoppeld: dan gaan updates alleen via dit basisstation.
+    pinned_basestation_id: Mapped[str | None] = mapped_column(ForeignKey("basestations.id"))
+    added_at: Mapped[datetime] = mapped_column(default=utcnow)
     last_seen: Mapped[datetime | None]
     battery_mv: Mapped[int | None]
     rssi: Mapped[int | None]
@@ -126,6 +130,18 @@ class Label(Base):
 class PriceSource:
     POS = "pos"
     MANUAL = "manual"
+
+
+class LabelSighting(Base):
+    """Label gehoord door een basisstation, maar (nog) niet aan diens winkel gekoppeld."""
+
+    __tablename__ = "label_sightings"
+    label_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    basestation_id: Mapped[str] = mapped_column(ForeignKey("basestations.id"), primary_key=True)
+    store_id: Mapped[str] = mapped_column(String(64), index=True)
+    rssi: Mapped[int | None]
+    battery_mv: Mapped[int | None]
+    last_seen: Mapped[datetime] = mapped_column(default=utcnow)
 
 
 class JobStatus:

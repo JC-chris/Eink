@@ -13,13 +13,13 @@ from urllib.parse import quote, urlsplit
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from .. import catalog, management, subscriptions
+from .. import catalog, inventory, management, subscriptions
 from ..db import get_session
 from ..displays import DISPLAY_TYPES
-from ..models import Alert, AuditEntry, Customer, Operator, Store, utcnow
+from ..models import Alert, AuditEntry, BaseStation, Customer, Label, Operator, Store, utcnow
 from ..monitoring import evaluate_alerts, store_overview
 from ..schemas import CustomerCreate
 from ..security import hash_password, sign, verify_password
@@ -304,7 +304,14 @@ def _store_page(request: Request, op: Operator, session: Session, store: Store, 
     alerts = session.scalars(select(Alert).where(Alert.store_id == store.id, Alert.resolved_at.is_(None))).all()
     return render(request, "store.html", op, store=store, customer=customer, overview=store_overview(session, store, now),
                   stations=stations, labels=catalog.list_labels(session, store), alerts=alerts, secret=secret,
-                  display_types=DISPLAY_TYPES)
+                  display_types=DISPLAY_TYPES, sightings=inventory.sightings(session, store.id),
+                  stores=_store_choices(session))
+
+
+def _store_choices(session: Session) -> list[tuple[str, str]]:
+    rows = session.execute(select(Store.id, Store.name, Customer.name).outerjoin(Customer, Customer.id == Store.customer_id)
+                           .order_by(Customer.name, Store.name)).all()
+    return [(sid, f"{cname or 'zonder klant'} — {sname}") for sid, sname, cname in rows]
 
 
 def _get_store(session: Session, store_id: str) -> Store:
@@ -346,6 +353,142 @@ def refresh_label(store_id: str, label_id: str, op: Operator = Depends(current_o
     subscriptions.audit(session, actor(op), "label_refresh", store.customer_id, store.id, label_id)
     session.commit()
     return redirect(f"/beheer/winkels/{store_id}", msg=f"Label {label_id} wordt opnieuw verstuurd")
+
+
+@router.post("/winkels/{store_id}/labels")
+def store_assign_labels(store_id: str, label_ids: str = Form(...), basestation_id: str = Form(""),
+                        op: Operator = Depends(current_operator), session: Session = Depends(get_session)):
+    """Labels uit de voorraad aan deze winkel koppelen (plaklijst of scanner)."""
+    store = _get_store(session, store_id)
+    ids = inventory.parse_label_list(label_ids)
+    if not ids:
+        return redirect(f"/beheer/winkels/{store_id}", err="Geen label-ID's opgegeven")
+    try:
+        n = inventory.assign_labels(session, ids, store, actor(op), basestation_id or None)
+        session.commit()
+    except HTTPException as exc:
+        session.rollback()
+        return redirect(f"/beheer/winkels/{store_id}", err=str(exc.detail))
+    return redirect(f"/beheer/winkels/{store_id}", msg=f"{n} label(s) gekoppeld aan {store.name}")
+
+
+@router.post("/winkels/{store_id}/gehoord/{label_id}")
+def store_claim_sighting(store_id: str, label_id: str, display_type: str = Form(""), move: str = Form(""),
+                         op: Operator = Depends(current_operator), session: Session = Depends(get_session)):
+    """Een label dat hier gehoord wordt koppelen; onbekend → eerst op voorraad met gekozen type."""
+    store = _get_store(session, store_id)
+    label = session.get(Label, label_id)
+    try:
+        if label is None:
+            inventory.add_labels_to_stock(session, [label_id], display_type or "bwry_2_9", actor(op))
+        elif label.store_id not in (None, store.id) and op.role != "admin":
+            raise HTTPException(403, "verplaatsen van een label van een andere klant mag alleen een admin")
+        inventory.assign_labels(session, [label_id], store, actor(op), move=bool(move))
+        session.commit()
+    except HTTPException as exc:
+        session.rollback()
+        return redirect(f"/beheer/winkels/{store_id}", err=str(exc.detail))
+    return redirect(f"/beheer/winkels/{store_id}", msg=f"Label {label_id} gekoppeld aan {store.name}")
+
+
+@router.post("/winkels/{store_id}/labels/{label_id}/basisstation")
+def store_pin_label(store_id: str, label_id: str, basestation_id: str = Form(""), op: Operator = Depends(current_operator),
+                    session: Session = Depends(get_session)):
+    store = _get_store(session, store_id)
+    label = catalog.get_label(session, store, label_id)
+    try:
+        inventory.pin_label(session, label, basestation_id or None, actor(op))
+        session.commit()
+    except HTTPException as exc:
+        session.rollback()
+        return redirect(f"/beheer/winkels/{store_id}", err=str(exc.detail))
+    return redirect(f"/beheer/winkels/{store_id}",
+                    msg=f"Label {label_id}: " + (f"vast via {basestation_id}" if basestation_id else "automatisch basisstation"))
+
+
+@router.post("/winkels/{store_id}/labels/{label_id}/voorraad")
+def store_unassign_label(store_id: str, label_id: str, op: Operator = Depends(current_operator),
+                         session: Session = Depends(get_session)):
+    store = _get_store(session, store_id)
+    catalog.get_label(session, store, label_id)
+    inventory.unassign_labels(session, [label_id], actor(op))
+    session.commit()
+    return redirect(f"/beheer/winkels/{store_id}", msg=f"Label {label_id} terug naar voorraad")
+
+
+@router.post("/basisstations/{bs_id}/koppelen")
+def basestation_assign(bs_id: str, store_id: str = Form(""), back: str = Form("/beheer/voorraad"),
+                       op: Operator = Depends(require_admin_role), session: Session = Depends(get_session)):
+    """Basisstation aan een winkel koppelen, verplaatsen of terug naar voorraad (leeg)."""
+    if not back.startswith("/beheer"):
+        back = "/beheer/voorraad"
+    bs = session.get(BaseStation, bs_id)
+    if bs is None:
+        return redirect(back, err="basisstation onbekend")
+    if not store_id:
+        return redirect(back, err="Kies een winkel of 'terug naar voorraad'")
+    store = None if store_id == "voorraad" else _get_store(session, store_id)
+    inventory.assign_basestation(session, bs, store, actor(op))
+    session.commit()
+    return redirect(back, msg=f"Basisstation {bs_id} " + (f"gekoppeld aan {store.name}" if store else "terug naar voorraad"))
+
+
+# --- voorraad ---------------------------------------------------------------------------------
+
+
+@router.get("/voorraad", response_class=HTMLResponse)
+def stock(request: Request, q: str = "", op: Operator = Depends(current_operator), session: Session = Depends(get_session),
+          secret: tuple[str, str] | None = None):
+    query = select(Label).order_by(Label.added_at.desc(), Label.id).limit(500)
+    query = query.where(Label.id.ilike(f"%{q.strip()}%")) if q.strip() else query.where(Label.store_id.is_(None))
+    labels = session.scalars(query).all()
+    stations = session.scalars(select(BaseStation).where(BaseStation.store_id.is_(None)).order_by(BaseStation.id)).all()
+    counts = dict(session.execute(select(Label.display_type, func.count()).where(Label.store_id.is_(None))
+                                  .group_by(Label.display_type)).all())
+    return render(request, "stock.html", op, labels=labels, stations=stations, counts=counts, q=q,
+                  display_types=DISPLAY_TYPES, stores=_store_choices(session), secret=secret)
+
+
+@router.post("/voorraad/labels")
+def stock_add_labels(label_ids: str = Form(...), display_type: str = Form(...), op: Operator = Depends(current_operator),
+                     session: Session = Depends(get_session)):
+    ids = inventory.parse_label_list(label_ids)
+    if not ids:
+        return redirect("/beheer/voorraad", err="Geen label-ID's opgegeven")
+    try:
+        added, known = inventory.add_labels_to_stock(session, ids, display_type, actor(op))
+        session.commit()
+    except HTTPException as exc:
+        session.rollback()
+        return redirect("/beheer/voorraad", err=str(exc.detail))
+    msg = f"{added} label(s) op voorraad gezet"
+    return redirect("/beheer/voorraad", msg=msg + (f"; {len(known)} bestonden al: {', '.join(known[:5])}" if known else ""))
+
+
+@router.post("/voorraad/labels/koppelen")
+def stock_assign_labels(request: Request, store_id: str = Form(...), label_id: list[str] = Form(default=[]),
+                        op: Operator = Depends(current_operator), session: Session = Depends(get_session)):
+    if not label_id:
+        return redirect("/beheer/voorraad", err="Selecteer eerst labels")
+    store = _get_store(session, store_id)
+    try:
+        n = inventory.assign_labels(session, label_id, store, actor(op))
+        session.commit()
+    except HTTPException as exc:
+        session.rollback()
+        return redirect("/beheer/voorraad", err=str(exc.detail))
+    return redirect(f"/beheer/winkels/{store.id}", msg=f"{n} label(s) gekoppeld aan {store.name}")
+
+
+@router.post("/voorraad/basisstations", response_class=HTMLResponse)
+def stock_add_basestation(request: Request, bs_id: str = Form(...), op: Operator = Depends(require_admin_role),
+                          session: Session = Depends(get_session)):
+    try:
+        bs = inventory.add_basestation_to_stock(session, bs_id.strip(), actor(op))
+        session.commit()
+    except HTTPException as exc:
+        return redirect("/beheer/voorraad", err=str(exc.detail))
+    return stock(request, "", op, session, secret=(f"Token voor basisstation {bs.id} (voor de fabrieksconfig)", bs.token))
 
 
 # --- overzichten ------------------------------------------------------------------------------

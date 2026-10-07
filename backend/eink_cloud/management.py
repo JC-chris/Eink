@@ -56,12 +56,12 @@ def rotate_api_key(session: Session, store: Store, actor: str) -> str:
 
 
 def basestation_statuses(session: Session, now: datetime) -> list[BaseStationStatus]:
-    rows = session.execute(select(BaseStation, Store.customer_id).join(Store, Store.id == BaseStation.store_id)
+    rows = session.execute(select(BaseStation, Store.customer_id).outerjoin(Store, Store.id == BaseStation.store_id)
                            .order_by(BaseStation.store_id, BaseStation.id)).all()
     return [
         BaseStationStatus(
             id=bs.id, store_id=bs.store_id, customer_id=customer_id,
-            online=bool(bs.last_seen and bs.last_seen >= now - BASESTATION_OFFLINE_AFTER),
+            online=bool(bs.store_id and bs.last_seen and bs.last_seen >= now - BASESTATION_OFFLINE_AFTER),
             last_seen=bs.last_seen, license_valid_until=bs.license_valid_until, software_version=bs.software_version,
         )
         for bs, customer_id in rows
@@ -79,8 +79,10 @@ def dashboard(session: Session, now: datetime) -> dict:
         by_status[effective] += 1
         if effective in (SubscriptionStatus.ACTIVE, SubscriptionStatus.CANCELLED):
             mrr += c.monthly_price_cents
-    stations = basestation_statuses(session, now)
-    labels = session.scalars(select(Label)).all()
+    all_stations = basestation_statuses(session, now)
+    stations = [s for s in all_stations if s.store_id]
+    labels = session.scalars(select(Label).where(Label.store_id.is_not(None))).all()
+    stock_labels = session.scalar(select(func.count()).select_from(Label).where(Label.store_id.is_(None)))
     alerts = session.scalars(select(Alert).where(Alert.resolved_at.is_(None))
                              .order_by(Alert.severity, Alert.created_at.desc())).all()
     ending_soon = [c for c in customers if c.subscription_status == SubscriptionStatus.CANCELLED
@@ -96,6 +98,8 @@ def dashboard(session: Session, now: datetime) -> dict:
         "basestations_online": sum(1 for s in stations if s.online),
         "basestations_license_expired": [s for s in stations if s.license_valid_until and s.license_valid_until < now],
         "labels_total": len(labels),
+        "labels_stock": stock_labels,
+        "basestations_stock": len(all_stations) - len(stations),
         "labels_online": sum(1 for l in labels if l.last_seen and l.last_seen >= now - LABEL_OFFLINE_AFTER),
         "labels_battery_low": sum(1 for l in labels if l.battery_mv is not None and l.battery_mv < BATTERY_LOW_MV),
         "labels_out_of_sync": sum(1 for l in labels if l.expected_crc is not None and l.expected_crc != l.displayed_crc),

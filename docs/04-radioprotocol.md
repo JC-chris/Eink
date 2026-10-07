@@ -16,10 +16,12 @@ Nordic levert werkende voorbeelden in nRF Connect SDK (`samples/bluetooth/esl`) 
 
 ## Koppelen (provisioning)
 
-1. Label komt uit de fabriek met uniek ID (= BLE-adres) + QR-code + NFC-tag.
-2. Medewerker scant met de beheer-app de QR/NFC van het label en de barcode van het product.
-3. App roept `POST /v1/stores/{winkel}/labels` en `PUT .../labels/{id}/product` aan.
-4. Basisstation ziet het label, voert ESL-bonding uit, en het eerste beeld wordt verstuurd.
+1. Label komt uit de fabriek met uniek ID (= BLE-adres) + QR-code + NFC-tag; de ID-lijst gaat
+   **op voorraad** in het managementsysteem.
+2. Bij levering koppelen wij de labels aan de winkel van de klant (managementsysteem), of de winkel
+   registreert labels die zijn basisstation hoort (zie [managementsysteem](09-managementsysteem.md#displays-en-basisstations-koppelen-aan-klantwinkel)).
+3. Medewerker scant QR/NFC van het label en de barcode van het product → `PUT .../labels/{id}/product`.
+4. Basisstation (automatisch of vast gekoppeld) voert ESL-bonding uit en verstuurt het eerste beeld.
 
 ## Beeldformaat (eigen, bovenop OTS)
 

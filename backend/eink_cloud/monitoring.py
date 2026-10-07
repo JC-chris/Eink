@@ -39,12 +39,13 @@ def find_problems(session: Session, now: datetime) -> list[Problem]:
     problems: list[Problem] = []
     # Uitgeschakelde winkels geven geen storingsmeldingen: daar is uitval verwacht.
     suspended = set(session.scalars(select(Store.id).where(Store.service_state == ServiceState.SUSPENDED)))
-    for bs in session.scalars(select(BaseStation)):
+    for bs in session.scalars(select(BaseStation).where(BaseStation.store_id.is_not(None))):
         if bs.store_id in suspended:
             continue
         if bs.last_seen is None or bs.last_seen < now - BASESTATION_OFFLINE_AFTER:
             problems.append(Problem(bs.store_id, "basestation_offline", bs.id, "critical",
-                                    f"Basisstation {bs.id} geeft geen heartbeat meer (laatst: {bs.last_seen})"))
+                                    f"Basisstation {bs.id} geeft geen heartbeat meer (laatst: {bs.last_seen:%d-%m-%Y %H:%M})"
+                                    if bs.last_seen else f"Basisstation {bs.id} heeft nog nooit ingecheckt"))
         if bs.license_valid_until is not None:
             if bs.license_valid_until < now:
                 problems.append(Problem(bs.store_id, "license_expired", bs.id, "critical",
@@ -54,7 +55,7 @@ def find_problems(session: Session, now: datetime) -> list[Problem]:
                 problems.append(Problem(bs.store_id, "license_expiring", bs.id, "warning",
                                         f"Basisstation {bs.id}: licentie verloopt op {bs.license_valid_until:%d-%m-%Y %H:%M} "
                                         "als het geen verbinding maakt"))
-    for label in session.scalars(select(Label)):
+    for label in session.scalars(select(Label).where(Label.store_id.is_not(None))):  # voorraad telt niet mee
         if label.store_id in suspended:
             continue
         if label.last_seen is not None and label.last_seen < now - LABEL_OFFLINE_AFTER:

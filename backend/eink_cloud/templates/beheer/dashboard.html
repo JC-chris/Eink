@@ -16,6 +16,7 @@
   <div class="kpi"><div class="v">{{ d.labels_online }} / {{ d.labels_total }}</div><div class="k">Labels online</div></div>
   <div class="kpi {{ 'warn' if d.labels_battery_low }}"><div class="v">{{ d.labels_battery_low }}</div><div class="k">Batterij bijna leeg</div></div>
   <div class="kpi {{ 'warn' if d.labels_out_of_sync }}"><div class="v">{{ d.labels_out_of_sync }}</div><div class="k">Labels niet actueel</div></div>
+  <div class="kpi"><div class="v"><a href="/beheer/voorraad" style="color:inherit;text-decoration:none">{{ d.labels_stock }} / {{ d.basestations_stock }}</a></div><div class="k">Op voorraad: labels / basisstations</div></div>
   <div class="kpi {{ 'bad' if d.alerts_critical }}"><div class="v">{{ d.alerts | length }}</div><div class="k">Open storingen ({{ d.alerts_critical }} kritiek)</div></div>
 </div>
 

@@ -27,6 +27,18 @@ def _cpu_temp() -> float | None:
         return None
 
 
+def _error_text(exc: httpx.HTTPError) -> str:
+    """Bij een weigering van de cloud de uitleg tonen (bv. 'staat op voorraad'), niet alleen de code."""
+    if isinstance(exc, httpx.HTTPStatusError):
+        try:
+            detail = exc.response.json().get("detail")
+        except ValueError:
+            detail = None
+        if isinstance(detail, str):
+            return f"cloud weigert ({exc.response.status_code}): {detail}"
+    return str(exc) or type(exc).__name__
+
+
 @dataclass
 class AgentStatus:
     """Toestand van de agent, getoond in de webinterface."""
@@ -137,7 +149,7 @@ class Agent:
             except httpx.HTTPError as exc:
                 # Cloud onbereikbaar: labels blijven gewoon hun laatste beeld tonen.
                 self.status.cloud_ok = False
-                self.status.last_error = str(exc) or type(exc).__name__
+                self.status.last_error = _error_text(exc)
                 log.warning("cloud niet bereikbaar (%s), opnieuw over %.0fs", exc, backoff)
                 backoff = min(backoff * 2, 60)
             time.sleep(backoff)

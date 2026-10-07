@@ -9,9 +9,9 @@
   <table>
     <tr><th>Basisstation</th><th>Winkel</th><th>Klant</th><th>Status</th><th>Laatste check-in</th><th>Licentie</th><th>Software</th></tr>
     {% for s in stations %}
-    <tr><td><strong>{{ s.id }}</strong></td><td><a href="/beheer/winkels/{{ s.store_id }}">{{ s.store_id }}</a></td>
+    <tr><td><strong>{{ s.id }}</strong></td><td>{% if s.store_id %}<a href="/beheer/winkels/{{ s.store_id }}">{{ s.store_id }}</a>{% else %}<a href="/beheer/voorraad"><span class="badge">voorraad</span></a>{% endif %}</td>
       <td>{% if s.customer_id %}<a href="/beheer/klanten/{{ s.customer_id }}">{{ s.customer_id }}</a>{% endif %}</td>
-      <td>{{ online_badge(s.online) }}</td><td>{{ s.last_seen | ago }}</td><td>{{ license_cell(s.license_valid_until) }}</td><td>{{ s.software_version or '' }}</td></tr>
+      <td>{% if s.store_id %}{{ online_badge(s.online) }}{% endif %}</td><td>{{ s.last_seen | ago }}</td><td>{{ license_cell(s.license_valid_until) }}</td><td>{{ s.software_version or '' }}</td></tr>
     {% else %}
     <tr><td colspan="7" class="muted">Nog geen basisstations.</td></tr>
     {% endfor %}

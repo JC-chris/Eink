@@ -20,6 +20,7 @@
 | **Klant** | Gegevens en abonnement, **opzegging registreren** (met einddatum), **opzegging intrekken**, **direct uitschakelen**, **heractiveren**, winkels toevoegen, auditlog van de klant |
 | **Winkel** | Labels (status, batterij, signaal), basisstations met licentiestatus, storingen, basisstation toevoegen (token wordt één keer getoond), nieuwe kassa-API-sleutel |
 | **Basisstations** | Alle basisstations met laatste check-in en hoe lang de licentie nog geldig is |
+| **Voorraad** | Labels en basisstations die nog niet gekoppeld zijn; op voorraad zetten (plaklijst/CSV/scanner), selecteren en aan een winkel koppelen, zoeken op label-ID |
 | **Storingen** | Open en recent opgeloste storingen |
 | **Auditlog** | Wie heeft wanneer wat gedaan (medewerker of extern systeem) |
 | **Medewerkers** | Accounts beheren (alleen admin) |
@@ -32,6 +33,58 @@ Eerste admin aanmaken op de server:
 ```bash
 EINK_DATABASE_URL=... python -m eink_cloud.cli create-operator anna --role admin
 ```
+
+## Displays en basisstations koppelen aan klant/winkel
+
+```
+ fabriek ──► VOORRAAD ──koppelen──► WINKEL (van een KLANT) ──► vast of automatisch BASISSTATION
+                ▲                        │
+                └──── naar voorraad ─────┘   (retour, defect, vervanging)
+```
+
+1. **Op voorraad zetten**: de fabriek levert een lijst label-ID's met displaytype (CSV of
+   scanner). Plak die in *Voorraad*, of gebruik `POST /v1/manage/labels`. Basisstations gaan ook op
+   voorraad; hun token gaat in de fabrieksconfig.
+2. **Koppelen aan winkel** (en daarmee aan de klant): selecteer labels in *Voorraad*, of plak de
+   ID's op de winkelpagina. Een basisstation koppel je aan een winkel vanuit *Voorraad*. Een
+   basisstation op voorraad krijgt geen licentie en doet niets.
+3. **Basisstation per label**:
+   - *Automatisch* (standaard): updates gaan via het basisstation dat het label het laatst hoorde.
+   - *Vast*: alleen via het gekozen basisstation, bijvoorbeeld een apart basisstation voor de
+     koelcel, of om storing tussen twee basisstations te voorkomen. Dit kan per label op de
+     winkelpagina, of bij het koppelen voor een hele reeks tegelijk.
+4. **Gehoord, niet gekoppeld**: elk basisstation meldt ook labels die het hoort maar die niet bij
+   zijn winkel horen. De winkelpagina toont die met hun status:
+   - *voorraad*: koppelen met één klik;
+   - *onbekend*: displaytype kiezen, dan op voorraad zetten en koppelen;
+   - *hoort bij een andere winkel*: alleen een admin kan het label hierheen verplaatsen.
+     Telemetrie van labels van de buren wordt niet overgenomen.
+5. **Ontkoppelen**: *Naar voorraad* haalt het label weg bij de winkel. Productkoppeling, vaste
+   koppeling en openstaande updates vervallen. Een basisstation verplaatsen naar een andere winkel
+   of klant kan ook. Labels die er vast aan hingen gaan dan terug naar automatisch.
+6. Alles komt in het **auditlog**.
+
+**Zelf registreren door de winkel** (kassa-API of de webinterface van het basisstation):
+
+| Label is… | Mag de winkel het registreren? |
+|---|---|
+| al van deze winkel | ja (displaytype bijwerken) |
+| van een andere winkel | nee (409) |
+| op voorraad | alleen als een basisstation van deze winkel het in de afgelopen 24 uur gehoord heeft. Dat bewijst dat het label fysiek in de winkel is. Het displaytype komt uit de voorraad |
+| onbekend | ja in ontwikkeling; in productie uit te zetten met `EINK_REQUIRE_INVENTORY=1` |
+
+Management-API voor voorraad en koppelen:
+
+| Methode | Pad | |
+|---|---|---|
+| GET | `/v1/manage/labels?stock=true` of `?store_id=` | Labels op voorraad / per winkel |
+| POST | `/v1/manage/labels` | `{"label_ids": [...], "display_type": "bwry_2_9"}` op voorraad zetten |
+| POST | `/v1/manage/labels/assign` | `{"label_ids": [...], "store_id": "...", "basestation_id": null, "move": false}` |
+| POST | `/v1/manage/labels/unassign` | `{"label_ids": [...]}` terug naar voorraad |
+| PUT | `/v1/manage/labels/{id}/basestation` | `{"basestation_id": "bs-..."}` vast, of `null` voor automatisch |
+| GET | `/v1/manage/stores/{id}/sightings` | Gehoorde, niet-gekoppelde labels |
+| POST | `/v1/manage/basestations` | Basisstation op voorraad (geeft token) |
+| POST | `/v1/manage/basestations/{id}/assign` | `{"store_id": "..."}` koppelen/verplaatsen, `null` = voorraad |
 
 ## Abonnementen
 

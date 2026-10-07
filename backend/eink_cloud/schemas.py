@@ -42,7 +42,7 @@ class BaseStationCreate(BaseModel):
 
 class BaseStationCreated(BaseModel):
     id: str
-    store_id: str
+    store_id: str | None
     token: str
 
 
@@ -93,6 +93,7 @@ class LabelOut(BaseModel):
     display_type: str
     product_sku: str | None
     basestation_id: str | None
+    pinned_basestation_id: str | None
     last_seen: datetime | None
     battery_mv: int | None
     rssi: int | None
@@ -185,7 +186,7 @@ class SuspendBody(BaseModel):
 
 class BaseStationStatus(BaseModel):
     id: str
-    store_id: str
+    store_id: str | None
     customer_id: str | None
     online: bool
     last_seen: datetime | None
@@ -202,3 +203,51 @@ class AuditOut(BaseModel):
     customer_id: str | None
     store_id: str | None
     details: str | None
+
+
+class StockLabelsIn(BaseModel):
+    label_ids: list[str] = Field(min_length=1, max_length=5000)
+    display_type: str
+
+    @field_validator("display_type")
+    @classmethod
+    def known_display(cls, v: str) -> str:
+        if v not in DISPLAY_TYPES:
+            raise ValueError(f"onbekend displaytype, kies uit {sorted(DISPLAY_TYPES)}")
+        return v
+
+
+class StockLabelsResult(BaseModel):
+    added: int
+    already_known: list[str]
+
+
+class AssignLabelsIn(BaseModel):
+    label_ids: list[str] = Field(min_length=1, max_length=5000)
+    store_id: str
+    basestation_id: str | None = Field(None, description="vast basisstation; leeg = automatisch")
+    move: bool = Field(False, description="ook labels die nu bij een andere winkel horen verplaatsen")
+
+
+class LabelIdsIn(BaseModel):
+    label_ids: list[str] = Field(min_length=1, max_length=5000)
+
+
+class PinIn(BaseModel):
+    basestation_id: str | None = Field(description="null = automatisch (best hoorbare basisstation)")
+
+
+class StockLabelOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    display_type: str
+    store_id: str | None
+    pinned_basestation_id: str | None
+    basestation_id: str | None
+    last_seen: datetime | None
+    battery_mv: int | None
+    added_at: datetime
+
+
+class BaseStationAssignIn(BaseModel):
+    store_id: str | None = Field(description="null = terug naar voorraad")

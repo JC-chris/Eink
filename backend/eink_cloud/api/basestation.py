@@ -13,6 +13,7 @@ from .. import catalog
 from ..licensing import issue_lease, public_key_b64
 from ..subscriptions import lease_message, require_service
 from ..auth import require_basestation
+from ..inventory import record_sighting, require_assigned
 from ..db import get_session
 from ..displays import DISPLAY_TYPES
 from ..jobs import claim_jobs, record_result
@@ -28,7 +29,10 @@ router = APIRouter(prefix="/v1/basestation", tags=["basisstation"])
 def apply_telemetry(session: Session, bs: BaseStation, t: LabelTelemetry) -> None:
     label = session.get(Label, t.label_id)
     if label is None or label.store_id != bs.store_id:
-        return  # onbekend of vreemd label (bv. van de buren) negeren
+        # Niet van deze winkel: alleen onthouden dat het hier gehoord is (koppelen kan dan
+        # vanuit het managementsysteem of de webinterface). Telemetrie niet overnemen.
+        record_sighting(session, bs, t.label_id, t.rssi, t.battery_mv)
+        return
     label.last_seen = utcnow()
     label.basestation_id = bs.id
     for field in ("rssi", "battery_mv", "temperature_c", "firmware_version", "displayed_crc"):
@@ -47,6 +51,7 @@ def license_key(request: Request):
 def heartbeat(body: Heartbeat, request: Request, bs: BaseStation = Depends(require_basestation),
               session: Session = Depends(get_session)):
     """Check-in. Het antwoord bevat een ondertekende licentie die 7 dagen geldig is."""
+    require_assigned(bs)
     now = utcnow()
     bs.last_seen = now
     bs.software_version = body.software_version
@@ -63,6 +68,7 @@ def heartbeat(body: Heartbeat, request: Request, bs: BaseStation = Depends(requi
 
 @router.get("/jobs", response_model=list[JobOut])
 def get_jobs(limit: int = 20, bs: BaseStation = Depends(require_basestation), session: Session = Depends(get_session)):
+    require_assigned(bs)
     jobs = claim_jobs(session, bs, min(max(limit, 1), 100))
     session.commit()
     return [JobOut(job_id=j.id, label_id=j.label_id, frame_b64=base64.b64encode(j.frame).decode(), crc32=j.crc32) for j in jobs]
@@ -84,7 +90,7 @@ def post_result(job_id: int, body: JobResult, bs: BaseStation = Depends(require_
 
 
 def station_store(bs: BaseStation = Depends(require_basestation), session: Session = Depends(get_session)) -> Store:
-    return session.get(Store, bs.store_id)
+    return session.get(Store, require_assigned(bs))
 
 
 @router.get("/store", response_model=StoreInfo)
@@ -125,8 +131,9 @@ def list_labels(store: Store = Depends(station_store), session: Session = Depend
 
 
 @router.post("/store/labels", response_model=LabelOut, status_code=201)
-def register_label(body: LabelCreate, store: Store = Depends(station_store), session: Session = Depends(get_session)):
-    label = catalog.register_label(session, store, body)
+def register_label(body: LabelCreate, request: Request, store: Store = Depends(station_store),
+                   session: Session = Depends(get_session)):
+    label = catalog.register_label(session, store, body, request.app.state.require_inventory)
     session.commit()
     return catalog.label_out(label)
 

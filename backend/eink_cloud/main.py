@@ -50,6 +50,8 @@ def create_app(database_url: str | None = None, admin_token: str | None = None, 
     app.state.sessionmaker = make_sessionmaker(database_url)
     app.state.admin_token = admin_token
     app.state.license_key = license_key
+    # Productie: alleen labels uit de voorraad (fabriek) mogen gekoppeld worden.
+    app.state.require_inventory = os.environ.get("EINK_REQUIRE_INVENTORY", "") == "1"
     app.state.session_secret = os.environ.get("EINK_SESSION_SECRET") or sign(admin_token, "beheer-sessies")
     for module in (admin, pos, basestation, monitoring, manage):
         app.include_router(module.router)

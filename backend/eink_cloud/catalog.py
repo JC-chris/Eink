@@ -11,6 +11,7 @@ from .jobs import content_for, schedule_label_update, schedule_product_update
 from .models import Label, Product, Store, utcnow
 from .render import quantize, render_image
 from .schemas import LabelCreate, LabelOut, ProductIn, ProductUpdateResult
+from .subscriptions import audit
 
 PRICE_SOURCE_NAMES = {"pos": "de kassa", "manual": "de webinterface van het basisstation"}
 
@@ -64,12 +65,35 @@ def get_label(session: Session, store: Store, label_id: str) -> Label:
     return label
 
 
-def register_label(session: Session, store: Store, body: LabelCreate) -> Label:
-    existing = session.get(Label, body.label_id)
-    if existing is not None and existing.store_id != store.id:
+def register_label(session: Session, store: Store, body: LabelCreate, require_inventory: bool = False) -> Label:
+    """Registratie door de winkel zelf (kassa-API of webinterface basisstation).
+
+    - label al van deze winkel: alleen displaytype bijwerken;
+    - label van een andere winkel: geweigerd;
+    - label op voorraad: alleen als een basisstation van deze winkel het recent gehoord heeft
+      (anders kan iedereen willekeurige labels uit onze voorraad claimen); het displaytype
+      komt dan uit de voorraad;
+    - onbekend label: aangemaakt, tenzij `require_inventory` (productie: alles via de voorraad).
+    """
+    from .inventory import heard_in_store, normalize_label_id
+
+    label_id = normalize_label_id(body.label_id)
+    existing = session.get(Label, label_id)
+    if existing is not None and existing.store_id not in (None, store.id):
         raise HTTPException(409, "label is aan een andere winkel gekoppeld")
-    label = existing or Label(id=body.label_id, store_id=store.id)
-    label.display_type = body.display_type
+    if existing is not None and existing.store_id is None:
+        if not heard_in_store(session, label_id, store.id):
+            raise HTTPException(403, "label staat op voorraad en is niet door een basisstation van deze winkel "
+                                     "gehoord; koppel het via het managementsysteem")
+        existing.store_id = store.id
+        audit(session, f"winkel:{store.id}", "label_claimed", store.customer_id, store.id, label_id)
+    elif existing is None:
+        if require_inventory:
+            raise HTTPException(403, "onbekend label; alleen labels uit onze voorraad kunnen gekoppeld worden")
+        existing = Label(id=label_id, store_id=store.id, display_type=body.display_type)
+    else:
+        existing.display_type = body.display_type
+    label = existing
     session.add(label)
     session.flush()
     schedule_label_update(session, label)

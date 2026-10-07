@@ -8,11 +8,17 @@ from fastapi import APIRouter, Depends, Header
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .. import management, subscriptions
+from fastapi import HTTPException
+
+from .. import inventory, management, subscriptions
 from ..auth import require_admin
 from ..db import get_session
-from ..models import AuditEntry, Customer, utcnow
-from ..schemas import AuditOut, BaseStationStatus, CancelBody, CustomerBase, CustomerCreate, CustomerOut, SuspendBody
+from ..models import AuditEntry, BaseStation, Customer, Label, Store, utcnow
+from ..schemas import (
+    AssignLabelsIn, AuditOut, BaseStationAssignIn, BaseStationCreate, BaseStationCreated, BaseStationStatus,
+    CancelBody, CustomerBase, CustomerCreate, CustomerOut, LabelIdsIn, PinIn, StockLabelOut, StockLabelsIn,
+    StockLabelsResult, SuspendBody,
+)
 
 router = APIRouter(prefix="/v1/manage", tags=["management"], dependencies=[Depends(require_admin)])
 
@@ -95,3 +101,87 @@ def audit_log(customer_id: str | None = None, limit: int = 200, session: Session
     if customer_id:
         q = q.where(AuditEntry.customer_id == customer_id)
     return session.scalars(q).all()
+
+
+# --- voorraad en koppelen -----------------------------------------------------------------------
+
+
+def _store(session: Session, store_id: str) -> Store:
+    store = session.get(Store, store_id)
+    if store is None:
+        raise HTTPException(404, "winkel onbekend")
+    return store
+
+
+@router.get("/labels", response_model=list[StockLabelOut])
+def list_labels(store_id: str | None = None, stock: bool = False, limit: int = 1000, session: Session = Depends(get_session)):
+    """Alle labels; `stock=true` alleen de voorraad, of filter op winkel."""
+    q = select(Label).order_by(Label.id).limit(min(limit, 10000))
+    if stock:
+        q = q.where(Label.store_id.is_(None))
+    elif store_id:
+        q = q.where(Label.store_id == store_id)
+    return session.scalars(q).all()
+
+
+@router.post("/labels", response_model=StockLabelsResult, status_code=201)
+def add_labels(body: StockLabelsIn, who: str = Depends(actor), session: Session = Depends(get_session)):
+    """Labels uit de fabriek op voorraad zetten."""
+    ids = [inventory.normalize_label_id(i) for i in body.label_ids if i.strip()]
+    added, known = inventory.add_labels_to_stock(session, ids, body.display_type, who)
+    session.commit()
+    return StockLabelsResult(added=added, already_known=known)
+
+
+@router.post("/labels/assign")
+def assign_labels(body: AssignLabelsIn, who: str = Depends(actor), session: Session = Depends(get_session)):
+    """Labels koppelen aan een winkel (en daarmee de klant), optioneel vast aan een basisstation."""
+    ids = [inventory.normalize_label_id(i) for i in body.label_ids]
+    n = inventory.assign_labels(session, ids, _store(session, body.store_id), who, body.basestation_id or None, body.move)
+    session.commit()
+    return {"assigned": n}
+
+
+@router.post("/labels/unassign")
+def unassign_labels(body: LabelIdsIn, who: str = Depends(actor), session: Session = Depends(get_session)):
+    """Labels terug naar voorraad (retour, defect, vervanging)."""
+    n = inventory.unassign_labels(session, [inventory.normalize_label_id(i) for i in body.label_ids], who)
+    session.commit()
+    return {"unassigned": n}
+
+
+@router.put("/labels/{label_id}/basestation", response_model=StockLabelOut)
+def pin_label(label_id: str, body: PinIn, who: str = Depends(actor), session: Session = Depends(get_session)):
+    """Label vast aan een basisstation koppelen, of terug naar automatisch."""
+    label = session.get(Label, inventory.normalize_label_id(label_id))
+    if label is None or label.store_id is None:
+        raise HTTPException(404, "label onbekend of op voorraad")
+    inventory.pin_label(session, label, body.basestation_id, who)
+    session.commit()
+    return label
+
+
+@router.get("/stores/{store_id}/sightings")
+def store_sightings(store_id: str, session: Session = Depends(get_session)):
+    """Labels die de basisstations van deze winkel horen maar die (nog) niet aan de winkel gekoppeld zijn."""
+    _store(session, store_id)
+    return inventory.sightings(session, store_id)
+
+
+@router.post("/basestations", response_model=BaseStationCreated, status_code=201)
+def add_basestation(body: BaseStationCreate, who: str = Depends(actor), session: Session = Depends(get_session)):
+    """Basisstation op voorraad zetten (token gaat in de fabrieksconfig)."""
+    bs = inventory.add_basestation_to_stock(session, body.id, who)
+    session.commit()
+    return BaseStationCreated(id=bs.id, store_id=None, token=bs.token)
+
+
+@router.post("/basestations/{bs_id}/assign", response_model=BaseStationStatus)
+def assign_basestation(bs_id: str, body: BaseStationAssignIn, who: str = Depends(actor), session: Session = Depends(get_session)):
+    """Basisstation koppelen aan een winkel, verplaatsen, of terug naar voorraad (`store_id: null`)."""
+    bs = session.get(BaseStation, bs_id)
+    if bs is None:
+        raise HTTPException(404, "basisstation onbekend")
+    inventory.assign_basestation(session, bs, _store(session, body.store_id) if body.store_id else None, who)
+    session.commit()
+    return next(s for s in management.basestation_statuses(session, utcnow()) if s.id == bs_id)

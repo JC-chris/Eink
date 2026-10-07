@@ -61,7 +61,10 @@ def claim_jobs(session: Session, bs: BaseStation, limit: int) -> list[UpdateJob]
         .where(
             UpdateJob.store_id == bs.store_id,
             UpdateJob.status == JobStatus.PENDING,
-            (Label.basestation_id.is_(None)) | (Label.basestation_id == bs.id),
+            # Vast gekoppeld: alleen via dat basisstation. Anders via het laatst gehoorde (of elk).
+            (Label.pinned_basestation_id == bs.id)
+            | (Label.pinned_basestation_id.is_(None)
+               & ((Label.basestation_id.is_(None)) | (Label.basestation_id == bs.id))),
         )
         .order_by(UpdateJob.id)
         .limit(limit)

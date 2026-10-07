@@ -1,0 +1,87 @@
+{% extends "beheer/base.html" %}
+{% block title %}Voorraad{% endblock %}
+{% block content %}
+<h1>Voorraad</h1>
+{% if secret %}
+<div class="secret"><strong>{{ secret[0] }}</strong> — wordt maar één keer getoond, kopieer hem nu:<br><code>{{ secret[1] }}</code></div>
+{% endif %}
+<p class="muted">Labels en basisstations uit de fabriek staan hier tot ze aan een winkel (en daarmee een klant) worden gekoppeld.
+  Retouren komen hier terug.</p>
+
+<div class="kpis">
+  {% for type_id, n in counts.items() %}
+  <div class="kpi"><div class="v">{{ n }}</div><div class="k">{{ display_types[type_id].description if type_id in display_types else type_id }}</div></div>
+  {% else %}
+  <div class="kpi"><div class="v">0</div><div class="k">Labels op voorraad</div></div>
+  {% endfor %}
+  <div class="kpi"><div class="v">{{ stations | length }}</div><div class="k">Basisstations op voorraad</div></div>
+</div>
+
+<div class="cols">
+  <div class="card">
+    <h2>Labels op voorraad zetten</h2>
+    <form method="post" action="/beheer/voorraad/labels">
+      <p><label>Label-ID's (één per regel; plakken uit fabriekslijst/CSV of scannen)</label>
+        <textarea name="label_ids" rows="6" required placeholder="C0:FF:EE:00:10:01&#10;C0:FF:EE:00:10:02"></textarea></p>
+      <p><label>Displaytype</label><select name="display_type">
+        {% for d in display_types.values() %}<option value="{{ d.id }}" {{ 'selected' if d.id == 'bwry_2_9' }}>{{ d.description }}</option>{% endfor %}
+      </select></p>
+      <button>Op voorraad zetten</button>
+    </form>
+  </div>
+
+  <div class="card scroll">
+    <h2>Basisstations op voorraad</h2>
+    <table>
+      <tr><th>Basisstation</th><th>Koppelen aan winkel</th></tr>
+      {% for bs in stations %}
+      <tr><td><strong>{{ bs.id }}</strong></td>
+        <td>{% if op.role == 'admin' %}
+          <form method="post" action="/beheer/basisstations/{{ bs.id }}/koppelen" class="inline">
+            <select name="store_id" required style="width:auto"><option value="">— kies winkel —</option>{% for sid, name in stores %}<option value="{{ sid }}">{{ name }}</option>{% endfor %}</select>
+            <button class="secondary">Koppelen</button>
+          </form>{% endif %}</td></tr>
+      {% else %}
+      <tr><td colspan="2" class="muted">Geen basisstations op voorraad.</td></tr>
+      {% endfor %}
+    </table>
+    {% if op.role == 'admin' %}
+    <form method="post" action="/beheer/voorraad/basisstations" class="inline" style="margin-top:12px">
+      <input name="bs_id" required pattern="[A-Za-z0-9-]{2,64}" placeholder="bs-0042"><button class="secondary">Basisstation op voorraad zetten</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card scroll">
+  <h2>{{ 'Zoekresultaat' if q else 'Labels op voorraad' }}</h2>
+  <form method="get" class="inline" style="margin-bottom:12px">
+    <input name="q" value="{{ q }}" placeholder="Zoek label-ID (ook gekoppelde)" style="width:280px"><button class="secondary">Zoeken</button>
+    {% if q %}<a href="/beheer/voorraad">Wissen</a>{% endif %}
+  </form>
+  <form method="post" action="/beheer/voorraad/labels/koppelen">
+    <table>
+      <tr><th><input type="checkbox" onclick="document.querySelectorAll('input[name=label_id]').forEach(c => c.checked = this.checked)" style="width:auto" aria-label="alles selecteren"></th>
+        <th>Label</th><th>Type</th><th>Winkel</th><th>Sinds</th></tr>
+      {% for l in labels %}
+      <tr>
+        <td>{% if not l.store_id %}<input type="checkbox" name="label_id" value="{{ l.id }}" style="width:auto">{% endif %}</td>
+        <td><code>{{ l.id }}</code></td>
+        <td>{{ display_types[l.display_type].description if l.display_type in display_types else l.display_type }}</td>
+        <td>{% if l.store_id %}<a href="/beheer/winkels/{{ l.store_id }}">{{ l.store_id }}</a>{% else %}<span class="badge">voorraad</span>{% endif %}</td>
+        <td class="muted">{{ l.added_at | d }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="muted">Geen labels gevonden.</td></tr>
+      {% endfor %}
+    </table>
+    {% if labels | selectattr('store_id', 'none') | list %}
+    <div class="inline" style="margin-top:12px">
+      <label style="margin:0">Geselecteerde labels koppelen aan</label>
+      <select name="store_id" required style="width:auto"><option value="">— kies winkel —</option>{% for sid, name in stores %}<option value="{{ sid }}">{{ name }}</option>{% endfor %}</select>
+      <button>Koppelen</button>
+    </div>
+    {% endif %}
+  </form>
+</div>
+{% endblock %}

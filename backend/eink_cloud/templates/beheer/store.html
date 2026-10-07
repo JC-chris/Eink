@@ -23,11 +23,20 @@
 <div class="card scroll">
   <h2>Basisstations</h2>
   <table>
-    <tr><th>ID</th><th>Status</th><th>Laatste check-in</th><th>Licentie (wekelijkse check-in)</th><th>Software</th></tr>
+    <tr><th>ID</th><th>Status</th><th>Laatste check-in</th><th>Licentie (wekelijkse check-in)</th><th>Software</th><th class="num">Labels vast</th>{% if op.role == 'admin' %}<th>Verplaatsen</th>{% endif %}</tr>
     {% for s in stations %}
-    <tr><td><strong>{{ s.id }}</strong></td><td>{{ online_badge(s.online) }}</td><td>{{ s.last_seen | ago }}</td><td>{{ license_cell(s.license_valid_until) }}</td><td>{{ s.software_version or '' }}</td></tr>
+    <tr><td><strong>{{ s.id }}</strong></td><td>{{ online_badge(s.online) }}</td><td>{{ s.last_seen | ago }}</td><td>{{ license_cell(s.license_valid_until) }}</td><td>{{ s.software_version or '' }}</td>
+      <td class="num">{{ labels | selectattr('pinned_basestation_id', 'equalto', s.id) | list | length }}</td>
+      {% if op.role == 'admin' %}<td>
+        <form method="post" action="/beheer/basisstations/{{ s.id }}/koppelen" class="inline"
+              onsubmit="return confirm('Basisstation {{ s.id }} verplaatsen? Labels die er vast aan hangen gaan terug naar automatisch.')">
+          <input type="hidden" name="back" value="/beheer/winkels/{{ store.id }}">
+          <select name="store_id" style="width:auto" required><option value="" disabled selected>— kies —</option><option value="voorraad">terug naar voorraad</option>{% for sid, name in stores if sid != store.id %}<option value="{{ sid }}">{{ name }}</option>{% endfor %}</select>
+          <button class="secondary">Verplaatsen</button>
+        </form></td>{% endif %}
+    </tr>
     {% else %}
-    <tr><td colspan="5" class="muted">Nog geen basisstation.</td></tr>
+    <tr><td colspan="7" class="muted">Nog geen basisstation.</td></tr>
     {% endfor %}
   </table>
   {% if op.role == 'admin' %}
@@ -51,10 +60,47 @@
 </div>
 {% endif %}
 
+{% if sightings %}
 <div class="card scroll">
-  <h2>Labels</h2>
+  <h2>Gehoord in deze winkel, niet gekoppeld ({{ sightings | length }})</h2>
   <table>
-    <tr><th>Label</th><th>Type</th><th>Product</th><th>Status</th><th>Laatst gezien</th><th class="num">Batterij</th><th class="num">Signaal</th><th>Via</th><th></th></tr>
+    <tr><th>Label</th><th>Gehoord via</th><th class="num">Signaal</th><th class="num">Batterij</th><th>Laatst</th><th>Status</th><th></th></tr>
+    {% for g in sightings %}
+    <tr>
+      <td><code>{{ g.label_id }}</code></td><td>{{ g.basestation_id }}</td><td class="num">{{ g.rssi ~ ' dBm' if g.rssi }}</td>
+      <td class="num">{{ g.battery_mv ~ ' mV' if g.battery_mv }}</td><td class="muted">{{ g.last_seen | ago }}</td>
+      <td>{% if g.status == 'stock' %}<span class="badge">voorraad</span>{% elif g.status == 'unknown' %}<span class="badge warn">onbekend</span>{% else %}<span class="badge err">hoort bij {{ g.other_store }}</span>{% endif %}</td>
+      <td>
+        {% if g.status != 'other_store' or op.role == 'admin' %}
+        <form method="post" action="/beheer/winkels/{{ store.id }}/gehoord/{{ g.label_id }}" class="inline"
+              {% if g.status == 'other_store' %}onsubmit="return confirm('Label hoort bij {{ g.other_store }}. Echt verplaatsen naar deze winkel?')"{% endif %}>
+          {% if g.status == 'unknown' %}<select name="display_type" style="width:auto">{% for d in display_types.values() %}<option value="{{ d.id }}" {{ 'selected' if d.id == 'bwry_2_9' }}>{{ d.description }}</option>{% endfor %}</select>{% endif %}
+          {% if g.status == 'other_store' %}<input type="hidden" name="move" value="1">{% endif %}
+          <button class="secondary">{{ 'Verplaatsen hierheen' if g.status == 'other_store' else 'Koppelen' }}</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>Labels uit voorraad koppelen</h2>
+  <form method="post" action="/beheer/winkels/{{ store.id }}/labels">
+    <div class="row">
+      <div style="grid-column: span 2"><label>Label-ID's (één per regel of gescand)</label><textarea name="label_ids" rows="3" required></textarea></div>
+      <div><label>Basisstation</label><select name="basestation_id"><option value="">Automatisch (best hoorbare)</option>{% for s in stations %}<option value="{{ s.id }}">Vast: {{ s.id }}</option>{% endfor %}</select></div>
+    </div>
+    <button class="secondary">Koppelen aan {{ store.name }}</button>
+  </form>
+</div>
+
+<div class="card scroll">
+  <h2>Labels ({{ labels | length }})</h2>
+  <table>
+    <tr><th>Label</th><th>Type</th><th>Product</th><th>Status</th><th>Laatst gezien</th><th class="num">Batterij</th><th class="num">Signaal</th><th>Basisstation</th><th></th></tr>
     {% for l in labels %}
     <tr>
       <td><code>{{ l.id }}</code></td><td>{{ display_types[l.display_type].description if l.display_type in display_types else l.display_type }}</td>
@@ -62,8 +108,20 @@
       <td>{% if l.in_sync %}<span class="badge ok">actueel</span>{% elif l.expected_crc is none %}<span class="badge">leeg</span>{% else %}<span class="badge warn">wordt bijgewerkt</span>{% endif %}</td>
       <td>{{ l.last_seen | ago }}</td>
       <td class="num">{% if l.battery_mv %}<span class="{{ 'badge err' if l.battery_mv < 2400 }}">{{ l.battery_mv }} mV</span>{% endif %}</td>
-      <td class="num">{{ l.rssi ~ ' dBm' if l.rssi }}</td><td>{{ l.basestation_id or '' }}</td>
-      <td>{% if store.service_state != 'suspended' %}<form method="post" action="/beheer/winkels/{{ store.id }}/labels/{{ l.id }}/opnieuw"><button class="secondary">Opnieuw</button></form>{% endif %}</td>
+      <td class="num">{{ l.rssi ~ ' dBm' if l.rssi }}</td>
+      <td>
+        <form method="post" action="/beheer/winkels/{{ store.id }}/labels/{{ l.id }}/basisstation" class="inline">
+          <select name="basestation_id" onchange="this.form.submit()" style="width:auto">
+            <option value="">Automatisch{{ ' (' ~ l.basestation_id ~ ')' if l.basestation_id and not l.pinned_basestation_id }}</option>
+            {% for s in stations %}<option value="{{ s.id }}" {{ 'selected' if l.pinned_basestation_id == s.id }}>Vast: {{ s.id }}</option>{% endfor %}
+          </select>
+          <noscript><button class="secondary">Opslaan</button></noscript>
+        </form>
+      </td>
+      <td><div class="inline">
+        {% if store.service_state != 'suspended' and l.product_sku %}<form method="post" action="/beheer/winkels/{{ store.id }}/labels/{{ l.id }}/opnieuw"><button class="secondary">Opnieuw</button></form>{% endif %}
+        <form method="post" action="/beheer/winkels/{{ store.id }}/labels/{{ l.id }}/voorraad" onsubmit="return confirm('Label {{ l.id }} ontkoppelen en terug naar voorraad?')"><button class="secondary">Naar voorraad</button></form>
+      </div></td>
     </tr>
     {% else %}
     <tr><td colspan="9" class="muted">Nog geen labels.</td></tr>
