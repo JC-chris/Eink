@@ -176,6 +176,17 @@ SAMPLE_PER_TEMPLATE = {
                              "Allergenen: gluten, melk, ei. Opwarmen: 10 min op 180 °C."),
     "ambachtelijk": dict(SAMPLE_PRODUCT, name="Ossenworst", price_cents=1895, origin="Eigen makelij",
                          description="Amsterdams recept"),
+    "delicatesse": dict(SAMPLE_PRODUCT, name="Oude Beemster", price_cents=2490, origin="Noord-Holland",
+                        description="48 maanden gerijpt"),
+    "knaller": dict(SAMPLE_PRODUCT, name="Kipfilet", price_cents=899, description="Scharrel, vers", origin=None),
+    "modern": dict(SAMPLE_PRODUCT, name="Zalmfilet", price_cents=3295, origin="Noorwegen", description="Gekweekt"),
+    "prijskaartje": dict(SAMPLE_PRODUCT, name="Appeltaart", price_cents=1250, unit="st", origin=None,
+                         description="Met kaneel en rozijnen, 8 punten"),
+    "biologisch": dict(SAMPLE_PRODUCT, name="Bospeen", price_cents=249, unit="st", origin="Flevoland",
+                       description="Per bos"),
+    "duo": dict(SAMPLE_PRODUCT, name="Gehakt half-om-half", price_cents=895, description=None),
+    "markt": dict(SAMPLE_PRODUCT, name="Kibbeling", price_cents=650, unit="st", origin="Noordzee",
+                  description="Vers gebakken met saus"),
 }
 
 

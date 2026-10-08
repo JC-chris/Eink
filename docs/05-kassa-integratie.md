@@ -54,6 +54,18 @@ en gebruikt de kleuren die het display heeft. Ontbreekt een kleur, dan wordt het
 | `bakker` | Gecentreerd, balk "Vers gebakken" of de actietekst | bakkerij | `description` |
 | `minimaal` | Naam + zo groot mogelijke prijs | kleine labels | |
 | `info` | Omschrijving over meerdere regels (ingrediënten, allergenen), prijsvlak | displays van 4,2" en groter | `description`, `was_price_cents` |
+| `krijtbord` | Zwart bord met sierlijk kader, schuine schreefletter, prijs in geel | slagerij, kaas, wijn | `origin`, `description` |
+| `delicatesse` | Dubbel kader met sierhoeken, schreefletter, gecentreerd | kaas, delicatessen, patisserie | `description` |
+| `knaller` | Prijs in een ster, actiekop en naam ernaast | opvallende acties | `promo_text`, `was_price_cents` |
+| `modern` | Veel wit, strakke lijn, zware prijs; schuin lint bij een actie | supermarkt, moderne versafdeling | `promo_text` |
+| `prijskaartje` | Prijs in een hangend kaartje met touwtje | speciaalzaken, bakkerij | `description` |
+| `biologisch` | Groene balk met blaadjes (zwart zonder groen display) | biologisch, groente | `promo_text` vervangt "Biologisch" |
+| `duo` | Gekleurd vlak met de naam, prijs ernaast | alle winkels | `origin` |
+| `markt` | Luifel van een marktkraam bovenaan | vis, groente, kaas, markt | `origin`, `description` |
+
+De laatste acht ontwerpen gebruiken een **prijs met verhoogde centen** (€ 29⁹⁵/kg) en de
+lettertypes Inter en Caladea. Beide vallen onder de SIL Open Font License, zijn vrij te gebruiken
+(ook commercieel) en staan in `backend/eink_cloud/fonts/`.
 
 - Product-velden: `was_price_cents` (van-prijs, alleen getoond als die hoger is dan de prijs),
   `description` (max. 300 tekens) en `template` (leeg = winkelontwerp).

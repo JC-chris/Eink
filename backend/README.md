@@ -30,7 +30,8 @@ Modules:
 | `licensing.py` | Ondertekende licenties voor de wekelijkse check-in |
 | `management.py` | Dashboard en gedeelde beheerlogica |
 | `cli.py` | `create-operator` |
-| `label_templates.py` | Labelontwerpen: standaard, actie, ambachtelijk, vis, bakker, minimaal, info |
+| `label_templates.py` | Register van alle labelontwerpen + de eerste zeven (standaard, actie, ambachtelijk, vis, bakker, minimaal, info) |
+| `label_designs.py` | Uitgesproken ontwerpen (krijtbord, delicatesse, knaller, modern, prijskaartje, biologisch, duo, markt) en bouwstenen: prijs met verhoogde centen, kaders, ster, lint, luifel, blaadjes |
 | `render.py` | Product → bitmap in het palet van het display |
 | `imageformat.py` | Frameformaat naar het label (RLE + CRC32) |
 | `jobs.py` | Jobs plannen, vervangen, retries |

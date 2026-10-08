@@ -14,6 +14,7 @@ from dataclasses import dataclass
 
 from PIL import Image, ImageDraw
 
+from . import label_designs as designs
 from .displays import BLACK, BLUE, RED, WHITE, YELLOW, DisplayType
 from .render import LabelContent, _fit, _font, format_euro, render_standard
 
@@ -295,4 +296,20 @@ TEMPLATES: dict[str, Template] = {t.id: t for t in (
              "Kleine labels, op afstand leesbaar", render_minimal),
     Template("info", "Info", "Omschrijving over meerdere regels (ingrediënten, allergenen), prijsvlak.",
              "Grote displays (4,2 inch en groter)", render_info),
+    Template("krijtbord", "Krijtbord", "Zwart bord met sierlijk kader, schuine schreefletter en prijs in geel.",
+             "Slagerij, kaas, wijn, delicatessen", designs.chalkboard),
+    Template("delicatesse", "Delicatesse", "Verfijnd etiket: dubbel kader met sierhoeken, schreefletter, gecentreerd.",
+             "Kaas, delicatessen, patisserie", designs.deli),
+    Template("knaller", "Knaller", "Prijs in een opvallende ster, actiekop en naam ernaast.",
+             "Acties die moeten opvallen", designs.burst),
+    Template("modern", "Modern", "Veel wit, strakke lijn, zware prijs met kleine centen; schuin lint bij een actie.",
+             "Supermarkt, moderne versafdeling", designs.modern),
+    Template("prijskaartje", "Prijskaartje", "De prijs in een hangend kaartje met touwtje.",
+             "Speciaalzaken, cadeau, bakkerij", designs.hangtag),
+    Template("biologisch", "Biologisch", "Groene balk met blaadjes (zwart als het display geen groen heeft).",
+             "Biologisch, duurzaam, groente", designs.organic),
+    Template("duo", "Duo", "Gekleurd vlak met de naam, de prijs rustig ernaast.",
+             "Alle winkels, goed leesbaar", designs.duo),
+    Template("markt", "Markt", "Luifel van een marktkraam bovenaan; vrolijk en vers.",
+             "Vis, groente, kaas, markt", designs.market),
 )}
