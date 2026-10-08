@@ -10,8 +10,11 @@ from .render import LabelContent, render_frame
 MAX_ATTEMPTS = 3
 
 
-def content_for(product: Product) -> LabelContent:
+def content_for(product: Product, store_template: str = "standaard") -> LabelContent:
     return LabelContent(
+        was_price_cents=product.was_price_cents,
+        description=product.description,
+        template=product.template or store_template,
         name=product.name,
         price_cents=product.price_cents,
         unit=product.unit,
@@ -34,7 +37,8 @@ def schedule_label_update(session: Session, label: Label) -> UpdateJob | None:
     )
     if product is None:
         return None
-    frame, _ = render_frame(content_for(product), DISPLAY_TYPES[label.display_type])
+    frame, _ = render_frame(content_for(product, store.label_template if store else "standaard"),
+                            DISPLAY_TYPES[label.display_type])
     open_jobs = (UpdateJob.label_id == label.id) & UpdateJob.status.in_((JobStatus.PENDING, JobStatus.SENT))
     if frame.crc32 == label.expected_crc and (
         frame.crc32 == label.displayed_crc or session.scalar(select(UpdateJob.id).where(open_jobs))

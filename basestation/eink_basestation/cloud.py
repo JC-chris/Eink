@@ -42,6 +42,18 @@ class Cloud:
     def set_price_source(self, source: str) -> dict:
         return self._call("PUT", "/v1/basestation/store/settings", json={"price_source": source}).json()
 
+    def templates(self) -> list[dict]:
+        return self._call("GET", "/v1/basestation/templates").json()
+
+    def set_label_template(self, template: str) -> dict:
+        return self._call("PUT", "/v1/basestation/store/settings", json={"label_template": template}).json()
+
+    def template_preview(self, template: str, display_type: str, sku: str | None = None, promo: bool = False) -> bytes:
+        params = {"display_type": display_type, "promo": str(promo).lower()}
+        if sku:
+            params["sku"] = sku
+        return self._call("GET", f"/v1/basestation/store/templates/{template}/preview.png", params=params).content
+
     def display_types(self) -> list[dict]:
         return self._call("GET", "/v1/basestation/display-types").json()
 

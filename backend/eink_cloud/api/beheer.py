@@ -12,7 +12,7 @@ from pathlib import Path
 from urllib.parse import quote, urlsplit
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -22,7 +22,9 @@ from ..db import get_session
 from ..displays import DISPLAY_TYPES
 from ..models import Alert, AuditEntry, BaseStation, Customer, Label, Operator, Shipment, ShipmentItem, Store, utcnow
 from ..monitoring import evaluate_alerts, store_overview
+from ..label_templates import TEMPLATES
 from ..pricefile import FIELD_LABELS
+from ..schemas import StoreSettings
 from ..schemas import CustomerCreate, PriceImportIn
 from ..security import hash_password, sign, verify_password
 from ..subscriptions import STATUS_NAMES
@@ -309,7 +311,7 @@ def _store_page(request: Request, op: Operator, session: Session, store: Store, 
     return render(request, "store.html", op, store=store, customer=customer, overview=store_overview(session, store, now),
                   stations=stations, labels=catalog.list_labels(session, store), alerts=alerts, secret=secret,
                   display_types=DISPLAY_TYPES, sightings=inventory.sightings(session, store.id),
-                  stores=_store_choices(session))
+                  stores=_store_choices(session), templates=TEMPLATES)
 
 
 def _store_choices(session: Session) -> list[tuple[str, str]]:
@@ -557,6 +559,29 @@ def stock_add_basestation(request: Request, bs_id: str = Form(...), op: Operator
     except HTTPException as exc:
         return redirect("/beheer/voorraad", err=str(exc.detail))
     return stock(request, "", op, session, secret=(f"Token voor basisstation {bs.id} (voor de fabrieksconfig)", bs.token))
+
+
+# --- labelontwerp -----------------------------------------------------------------------------
+
+
+@router.get("/winkels/{store_id}/ontwerp/{template}.png")
+def design_preview(store_id: str, template: str, display_type: str = "bwry_2_9", op: Operator = Depends(current_operator),
+                   session: Session = Depends(get_session)):
+    return Response(catalog.template_preview_png(session, _get_store(session, store_id), template, display_type),
+                    media_type="image/png")
+
+
+@router.post("/winkels/{store_id}/ontwerp")
+def set_design(store_id: str, template: str = Form(...), op: Operator = Depends(current_operator),
+               session: Session = Depends(get_session)):
+    store = _get_store(session, store_id)
+    try:
+        body = StoreSettings(label_template=template)
+    except ValueError:
+        return redirect(f"/beheer/winkels/{store_id}", err="onbekend ontwerp")
+    n = catalog.update_store_settings(session, store, body, actor(op))
+    session.commit()
+    return redirect(f"/beheer/winkels/{store_id}", msg=f"Ontwerp '{TEMPLATES[template].name}' ingesteld; {n} labels worden bijgewerkt")
 
 
 # --- prijslijst importeren --------------------------------------------------------------------

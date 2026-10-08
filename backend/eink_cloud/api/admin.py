@@ -34,7 +34,9 @@ def update_store_settings(store_id: str, body: StoreSettings, session: Session =
     store = session.get(Store, store_id)
     if store is None:
         raise HTTPException(404, "winkel onbekend")
-    store.price_source = body.price_source
+    from .. import catalog
+
+    catalog.update_store_settings(session, store, body, "api:admin")
     session.commit()
     return store
 

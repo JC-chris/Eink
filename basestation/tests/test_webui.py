@@ -180,3 +180,22 @@ def test_network_page(env):
     r = ui.post("/netwerk/hotspot", data={})
     assert "hotspot staat uit" in r.text
     assert Config.load(tmp_path / "config.json").hotspot_enabled is False
+
+
+def test_design_page_and_product_design_fields(env):
+    ui, _agent, pos, *_ = env
+    login(ui)
+    page = ui.get("/ontwerp").text
+    assert "Labelontwerp" in page and "Ambachtelijk" in page and "/ontwerp/vis/voorbeeld.png" in page
+    assert ui.get("/ontwerp/vis/voorbeeld.png?display_type=bwry_4_2").content[:4] == b"\x89PNG"
+    r = ui.post("/ontwerp", data={"template": "bakker"})
+    assert "Ontwerp opgeslagen" in r.text
+    assert pos.get("/v1/stores/bakkerij").json()["label_template"] == "bakker"
+
+    ui.post("/instellingen/prijsbron", data={"price_source": "manual"})
+    assert "Winkelontwerp (bakker)" in ui.get("/producten").text
+    r = ui.post("/producten", data={"sku": "5", "name": "Appeltaart", "price": "12,50", "was_price": "14,95",
+                                    "description": "Met kaneel en rozijnen", "template": "actie", "promo_text": "Actie"})
+    assert "Appeltaart opgeslagen" in r.text and "(van € 14,95)" in r.text
+    p = pos.get("/v1/stores/bakkerij/products/5").json()
+    assert (p["was_price_cents"], p["description"], p["template"]) == (1495, "Met kaneel en rozijnen", "actie")

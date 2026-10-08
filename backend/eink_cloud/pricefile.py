@@ -34,10 +34,15 @@ FIELDS = {
     "unit_price": ("prijsperkgvoorverpakt", "kgprijs", "literprijs", "prijsperliter", "unitprice", "eenheidprijs"),
     "origin": ("herkomst", "land", "oorsprong", "origin", "landvanherkomst", "afkomst"),
     "promo_text": ("actie", "actietekst", "promotie", "promo", "aanbieding", "promotext"),
+    "was_price": ("vanprijs", "van", "oudeprijs", "adviesprijs", "normaleprijs", "wasprice", "regularprice"),
+    "description": ("beschrijving", "toelichting", "ingredienten", "ingrediënten", "allergenen", "info", "details",
+                    "latijnsenaam", "wetenschappelijkenaam"),
+    "template": ("ontwerp", "sjabloon", "template", "layout"),
 }
 FIELD_LABELS = {
     "sku": "Artikelnummer / PLU", "name": "Naam", "price": "Prijs", "unit": "Eenheid",
     "unit_price": "Prijs per kg (voorverpakt)", "origin": "Herkomst", "promo_text": "Actietekst",
+    "was_price": "Van-prijs", "description": "Omschrijving", "template": "Ontwerp",
 }
 REQUIRED = ("sku", "name", "price")
 UNIT_ALIASES = {
@@ -205,9 +210,11 @@ def build_items(table: Table, mapping: dict[str, str], default_unit: str = "st")
                 raise ValueError(f"artikelnummer {sku} komt dubbel voor (ook op regel {seen[sku]})")
             unit = parse_unit(get("unit")) if "unit" in idx and get("unit") else default_unit
             unit_price = parse_price(get("unit_price")) if get("unit_price") else None
+            was_price = parse_price(get("was_price")) if get("was_price") else None
             item = ProductBatchItem(sku=sku, name=get("name"), price_cents=parse_price(get("price")), unit=unit,
                                     unit_price_cents=unit_price, origin=get("origin") or None,
-                                    promo_text=get("promo_text") or None)
+                                    promo_text=get("promo_text") or None, was_price_cents=was_price,
+                                    description=get("description") or None, template=get("template").lower() or None)
             if not item.name:
                 raise ValueError("naam ontbreekt")
         except ValidationError as exc:

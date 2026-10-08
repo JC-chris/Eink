@@ -107,6 +107,7 @@ op pc, tablet of telefoon:
 | **Status** | Cloudverbinding, labels in bereik, gelukte/mislukte updates, laatste fout |
 | **Producten** | Producten en prijzen beheren, met de hand of met een **Excel/CSV-prijslijst** (alleen in modus *webinterface*; anders alleen-lezen) |
 | **Labels** | Nieuwe labels in bereik registreren, koppelen aan een product, preview, opnieuw sturen |
+| **Ontwerp** | Standaard labelontwerp van de winkel kiezen, met voorbeelden per displaytype (met en zonder actie) |
 | **Netwerk** | Status Ethernet/Wi-Fi (IP, gateway, DNS, signaal), Ethernet DHCP of vast IP, Wi-Fi zoeken/verbinden/vergeten, installatie-hotspot |
 | **Instellingen** | **Prijsbron** (kassa/weegschaal ↔ webinterface), **importmap**, cloudserver + token, wachtwoord, apparaatinfo |
 

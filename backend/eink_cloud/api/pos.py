@@ -10,7 +10,7 @@ from ..db import get_session
 from ..models import PriceSource, Store
 from ..schemas import (
     LabelCreate, LabelLink, LabelOut, PriceImportIn, PriceImportOut, ProductBatchItem, ProductIn, ProductOut,
-    ProductUpdateResult, StoreInfo,
+    ProductUpdateResult, StoreInfo, TemplateOut,
 )
 
 router = APIRouter(prefix="/v1/stores/{store_id}", tags=["kassa"])
@@ -19,6 +19,14 @@ router = APIRouter(prefix="/v1/stores/{store_id}", tags=["kassa"])
 @router.get("", response_model=StoreInfo)
 def get_store(store: Store = Depends(require_store)):
     return store
+
+
+@router.get("/templates", response_model=list[TemplateOut])
+def templates(store: Store = Depends(require_store)):
+    """Beschikbare labelontwerpen. Kies per product met het veld `template`, of laat leeg voor het winkelontwerp."""
+    from ..label_templates import TEMPLATES
+
+    return [TemplateOut(id=t.id, name=t.name, description=t.description, suited_for=t.suited_for) for t in TEMPLATES.values()]
 
 
 @router.put("/products/{sku}", response_model=ProductUpdateResult, responses={403: {"description": "abonnement niet actief"}, 409: {"description": "winkel staat op handmatig beheer"}})

@@ -73,6 +73,7 @@ class Store(Base):
     name: Mapped[str] = mapped_column(String(200))
     api_key: Mapped[str] = mapped_column(String(64), unique=True)
     customer_id: Mapped[str | None] = mapped_column(ForeignKey("customers.id"))
+    label_template: Mapped[str] = mapped_column(String(32), default="standaard")  # standaardontwerp labels
     # Laatst gebruikte kolomindeling voor prijslijst-import (JSON), zodat vaste exports vanzelf werken.
     import_mapping: Mapped[str | None] = mapped_column(String(2000))
     # Afgeleid van het abonnement; bijgehouden zodat de overgang (labels neutraal) één keer gebeurt.
@@ -106,6 +107,9 @@ class Product(Base):
     unit_price_unit: Mapped[str] = mapped_column(String(8), default="kg")
     origin: Mapped[str | None] = mapped_column(String(100))
     promo_text: Mapped[str | None] = mapped_column(String(100))
+    was_price_cents: Mapped[int | None]  # "van"-prijs bij een actie
+    description: Mapped[str | None] = mapped_column(String(300))
+    template: Mapped[str | None] = mapped_column(String(32))  # None = ontwerp van de winkel
     updated_at: Mapped[datetime] = mapped_column(default=utcnow)
 
 

@@ -19,6 +19,9 @@ class LabelContent:
     unit_price_unit: str = "kg"
     origin: str | None = None
     promo_text: str | None = None
+    was_price_cents: int | None = None  # "van"-prijs bij een actie
+    description: str | None = None  # bv. ingrediënten/allergenen, of Latijnse naam + vangstmethode bij vis
+    template: str = "standaard"
 
 
 def format_euro(cents: int) -> str:
@@ -47,6 +50,14 @@ def _fit(draw: ImageDraw.ImageDraw, text: str, max_w: int, size: int, bold: bool
 
 
 def render_image(content: LabelContent, display: DisplayType) -> Image.Image:
+    """Kiest het ontwerp (sjabloon) en tekent het label."""
+    from .label_templates import TEMPLATES
+
+    template = TEMPLATES.get(content.template) or TEMPLATES["standaard"]
+    return template.render(content, display)
+
+
+def render_standard(content: LabelContent, display: DisplayType) -> Image.Image:
     w, h = display.width, display.height
     img = Image.new("RGB", (w, h), WHITE)
     d = ImageDraw.Draw(img)

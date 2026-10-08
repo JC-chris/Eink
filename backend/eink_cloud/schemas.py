@@ -26,7 +26,17 @@ class StoreCreated(BaseModel):
 
 
 class StoreSettings(BaseModel):
-    price_source: PriceSourceT = Field(description="pos = kassa via API, manual = webinterface basisstation")
+    price_source: PriceSourceT | None = Field(None, description="pos = kassa via API, manual = webinterface basisstation")
+    label_template: str | None = Field(None, description="standaard labelontwerp van de winkel")
+
+    @field_validator("label_template")
+    @classmethod
+    def known_template(cls, v: str | None) -> str | None:
+        from .label_templates import TEMPLATES
+
+        if v is not None and v not in TEMPLATES:
+            raise ValueError(f"onbekend ontwerp, kies uit {sorted(TEMPLATES)}")
+        return v
 
 
 class StoreInfo(BaseModel):
@@ -34,6 +44,7 @@ class StoreInfo(BaseModel):
     id: str
     name: str
     price_source: PriceSourceT
+    label_template: str
 
 
 class BaseStationCreate(BaseModel):
@@ -54,6 +65,20 @@ class ProductIn(BaseModel):
     unit_price_unit: Literal["kg", "l"] = "kg"
     origin: str | None = Field(None, max_length=100)
     promo_text: str | None = Field(None, max_length=100)
+    was_price_cents: int | None = Field(None, ge=0, description="van-prijs, doorgestreept getoond bij een actie")
+    description: str | None = Field(None, max_length=300, description="omschrijving, ingrediënten/allergenen of vangstinformatie")
+    template: str | None = Field(None, description="labelontwerp voor dit product; leeg = ontwerp van de winkel")
+
+    @field_validator("template")
+    @classmethod
+    def known_template(cls, v: str | None) -> str | None:
+        from .label_templates import TEMPLATES
+
+        if v in (None, ""):
+            return None
+        if v not in TEMPLATES:
+            raise ValueError(f"onbekend ontwerp, kies uit {sorted(TEMPLATES)}")
+        return v
 
 
 class ProductBatchItem(ProductIn):
@@ -293,3 +318,10 @@ class PriceImportOut(BaseModel):
     preview: list[ProductBatchItem]
     imported: int = 0
     labels_scheduled: int = 0
+
+
+class TemplateOut(BaseModel):
+    id: str
+    name: str
+    description: str
+    suited_for: str

@@ -159,5 +159,59 @@ def preview_png(session: Session, store: Store, label_id: str) -> bytes:
     product = get_product(session, store, label.product_sku)
     display = DISPLAY_TYPES[label.display_type]
     buf = io.BytesIO()
-    quantize(render_image(content_for(product), display), display).save(buf, "PNG")
+    quantize(render_image(content_for(product, store.label_template), display), display).save(buf, "PNG")
     return buf.getvalue()
+
+
+SAMPLE_PRODUCT = dict(name="Runderbiefstuk", price_cents=2995, unit="kg", origin="Nederland",
+                      description="Malse biefstuk van Hollandse weiderunderen", promo_text=None, was_price_cents=None)
+# Voorbeeldproduct dat bij het ontwerp past (alleen voor de voorbeelden in de webinterfaces).
+SAMPLE_PER_TEMPLATE = {
+    "vis": dict(SAMPLE_PRODUCT, name="Kabeljauwfilet", price_cents=3295, origin="FAO 27 Noordoost-Atlantische Oceaan",
+                description="Gadus morhua · wild gevangen · sleepnet"),
+    "bakker": dict(SAMPLE_PRODUCT, name="Desembrood volkoren", price_cents=445, unit="st", origin=None,
+                   description="Met zuurdesem, 800 g"),
+    "info": dict(SAMPLE_PRODUCT, name="Saucijzenbroodje", price_cents=295, unit="st",
+                 description="Bladerdeeg (tarwebloem, boter), varkensgehakt, ui, kruiden. "
+                             "Allergenen: gluten, melk, ei. Opwarmen: 10 min op 180 °C."),
+    "ambachtelijk": dict(SAMPLE_PRODUCT, name="Ossenworst", price_cents=1895, origin="Eigen makelij",
+                         description="Amsterdams recept"),
+}
+
+
+def template_preview_png(session: Session, store: Store, template: str, display_type: str, sku: str | None = None,
+                         promo: bool = False) -> bytes:
+    """Voorbeeld van een ontwerp, met een product van de winkel of een voorbeeldproduct."""
+    from .label_templates import TEMPLATES
+    from .render import LabelContent
+
+    if template not in TEMPLATES:
+        raise HTTPException(404, "onbekend ontwerp")
+    if display_type not in DISPLAY_TYPES:
+        raise HTTPException(404, "onbekend displaytype")
+    if sku:
+        content = content_for(get_product(session, store, sku), template)
+        content.template = template
+    else:
+        content = LabelContent(**SAMPLE_PER_TEMPLATE.get(template, SAMPLE_PRODUCT), template=template)
+        if promo:
+            content.promo_text, content.was_price_cents = "Weekaanbieding", content.price_cents
+            content.price_cents = content.price_cents * 4 // 5
+    display = DISPLAY_TYPES[display_type]
+    buf = io.BytesIO()
+    quantize(render_image(content, display), display).save(buf, "PNG")
+    return buf.getvalue()
+
+
+def update_store_settings(session: Session, store: Store, body, actor: str) -> int:
+    """Prijsbron en/of standaardontwerp wijzigen. Bij een ander ontwerp krijgen alle labels het nieuwe beeld."""
+    if body.price_source is not None:
+        store.price_source = body.price_source
+    rescheduled = 0
+    if body.label_template is not None and body.label_template != store.label_template:
+        store.label_template = body.label_template
+        audit(session, actor, "label_template", store.customer_id, store.id, body.label_template)
+        for label in session.scalars(select(Label).where(Label.store_id == store.id, Label.product_sku.is_not(None))):
+            if schedule_label_update(session, label):
+                rescheduled += 1
+    return rescheduled

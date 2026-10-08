@@ -53,6 +53,26 @@
   {% endif %}
 </div>
 
+<div class="card">
+  <h2>Labelontwerp</h2>
+  {% set common = (labels | map(attribute='display_type') | list) %}
+  {% set preview_type = common | first if common else 'bwry_2_9' %}
+  <form method="post" action="/beheer/winkels/{{ store.id }}/ontwerp">
+    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:10px; margin-bottom:12px">
+      {% for t in templates.values() %}
+      <label class="checkbox" style="flex-direction:column; border:2px solid {{ 'var(--nav)' if t.id == store.label_template else 'var(--line)' }}; border-radius:8px; padding:8px">
+        <span><input type="radio" name="template" value="{{ t.id }}" {{ 'checked' if t.id == store.label_template }}> <strong>{{ t.name }}</strong>
+          {% if t.id == store.label_template %}<span class="badge ok">huidig</span>{% endif %}</span>
+        <img src="/beheer/winkels/{{ store.id }}/ontwerp/{{ t.id }}.png?display_type={{ preview_type }}" alt="{{ t.name }}" loading="lazy"
+             style="width:100%; border:1px solid var(--line); image-rendering:pixelated">
+        <span class="muted">{{ t.suited_for }}</span>
+      </label>
+      {% endfor %}
+    </div>
+    <button class="secondary">Ontwerp voor alle labels van deze winkel instellen</button>
+  </form>
+</div>
+
 {% if alerts %}
 <div class="card scroll">
   <h2>Open storingen</h2>

@@ -20,7 +20,7 @@ from ..jobs import claim_jobs, record_result
 from ..models import BaseStation, Customer, Label, PriceSource, Store, UpdateJob, utcnow
 from ..schemas import (
     Heartbeat, JobOut, JobResult, LabelCreate, LabelLink, LabelOut, LabelTelemetry, PriceImportIn, PriceImportOut,
-    ProductIn, ProductOut, ProductUpdateResult, StoreInfo, StoreSettings,
+    ProductIn, ProductOut, ProductUpdateResult, StoreInfo, StoreSettings, TemplateOut,
 )
 
 router = APIRouter(prefix="/v1/basestation", tags=["basisstation"])
@@ -99,11 +99,25 @@ def get_store(store: Store = Depends(station_store)):
 
 
 @router.put("/store/settings", response_model=StoreInfo)
-def update_store_settings(body: StoreSettings, store: Store = Depends(station_store), session: Session = Depends(get_session)):
-    """Omschakelen tussen kassa en webinterface als bron van de prijzen."""
-    store.price_source = body.price_source
+def update_store_settings(body: StoreSettings, store: Store = Depends(station_store),
+                          bs: BaseStation = Depends(require_basestation), session: Session = Depends(get_session)):
+    """Prijsbron (kassa ↔ webinterface) en/of standaard labelontwerp van de winkel wijzigen."""
+    catalog.update_store_settings(session, store, body, f"basisstation:{bs.id}")
     session.commit()
     return store
+
+
+@router.get("/templates", response_model=list[TemplateOut])
+def templates():
+    from ..label_templates import TEMPLATES
+
+    return [TemplateOut(id=t.id, name=t.name, description=t.description, suited_for=t.suited_for) for t in TEMPLATES.values()]
+
+
+@router.get("/store/templates/{template}/preview.png", response_class=Response)
+def template_preview(template: str, display_type: str = "bwry_2_9", sku: str | None = None, promo: bool = False,
+                     store: Store = Depends(station_store), session: Session = Depends(get_session)):
+    return Response(catalog.template_preview_png(session, store, template, display_type, sku, promo), media_type="image/png")
 
 
 @router.get("/display-types")

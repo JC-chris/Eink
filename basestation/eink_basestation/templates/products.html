@@ -30,6 +30,17 @@
           <input id="origin" name="origin" maxlength="100" placeholder="bv. Nederland" value="{{ editing.origin or '' if editing }}"></div>
         <div><label for="promo_text">Actietekst (geel/rood)</label>
           <input id="promo_text" name="promo_text" maxlength="100" placeholder="bv. Weekaanbieding" value="{{ editing.promo_text or '' if editing }}"></div>
+        <div><label for="was_price">Van-prijs (doorgestreept)</label>
+          <input id="was_price" name="was_price" inputmode="decimal" placeholder="optioneel" value="{{ editing.was_price_cents | euro_input if editing }}"></div>
+      </div>
+      <div class="row">
+        <div style="grid-column: span 2"><label for="description">Omschrijving <span class="muted">(ingrediënten/allergenen, of Latijnse naam en vangstmethode bij vis)</span></label>
+          <input id="description" name="description" maxlength="300" value="{{ editing.description or '' if editing }}"></div>
+        <div><label for="template">Ontwerp</label>
+          <select id="template" name="template">
+            <option value="">Winkelontwerp ({{ store.label_template }})</option>
+            {% for t in templates %}<option value="{{ t.id }}" {{ 'selected' if editing and editing.template == t.id }}>{{ t.name }}</option>{% endfor %}
+          </select></div>
       </div>
       <button>Opslaan</button>
       {% if editing %}<a href="/producten" style="margin-left:8px">Annuleren</a>{% endif %}
@@ -44,16 +55,17 @@
   {% endif %}
   <div class="card scroll">
     <table>
-      <tr><th>Artikel</th><th>Naam</th><th>Prijs</th><th>Per kg</th><th>Herkomst</th><th>Actie</th><th></th></tr>
+      <tr><th>Artikel</th><th>Naam</th><th>Prijs</th><th>Per kg</th><th>Herkomst</th><th>Actie</th><th>Ontwerp</th><th></th></tr>
       {% for p in products %}
       <tr>
         <td>{{ p.sku }}</td><td>{{ p.name }}</td>
         <td><strong>{{ p.price_cents | euro }}</strong>{% if p.unit != 'st' %} /{{ p.unit }}{% endif %}</td>
-        <td>{{ p.unit_price_cents | euro }}</td><td>{{ p.origin or '' }}</td><td>{{ p.promo_text or '' }}</td>
+        <td>{{ p.unit_price_cents | euro }}</td><td>{{ p.origin or '' }}</td><td>{{ p.promo_text or '' }}{% if p.was_price_cents %} <span class="muted">(van {{ p.was_price_cents | euro }})</span>{% endif %}</td>
+        <td class="muted">{{ p.template or '' }}</td>
         <td>{% if manual %}<a href="/producten?edit={{ p.sku | urlencode }}">Bewerken</a>{% endif %}</td>
       </tr>
       {% else %}
-      <tr><td colspan="7" class="muted">Nog geen producten.</td></tr>
+      <tr><td colspan="8" class="muted">Nog geen producten.</td></tr>
       {% endfor %}
     </table>
   </div>

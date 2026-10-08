@@ -30,6 +30,7 @@ Modules:
 | `licensing.py` | Ondertekende licenties voor de wekelijkse check-in |
 | `management.py` | Dashboard en gedeelde beheerlogica |
 | `cli.py` | `create-operator` |
+| `label_templates.py` | Labelontwerpen: standaard, actie, ambachtelijk, vis, bakker, minimaal, info |
 | `render.py` | Product → bitmap in het palet van het display |
 | `imageformat.py` | Frameformaat naar het label (RLE + CRC32) |
 | `jobs.py` | Jobs plannen, vervangen, retries |

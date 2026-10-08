@@ -39,6 +39,34 @@ POST /v1/stores/slagerij-jansen/products:batch
 [{ "sku": "1001", "name": "...", "price_cents": 1295, "unit": "kg" }, ...]
 ```
 
+## Labelontwerpen
+
+Elke winkel heeft een **standaardontwerp**. Per product kun je een ander ontwerp kiezen met het
+veld `template`, bijvoorbeeld `actie` voor de weekaanbieding. Elk ontwerp werkt op elk displaytype
+en gebruikt de kleuren die het display heeft. Ontbreekt een kleur, dan wordt het zwart.
+
+| `template` | Ontwerp | Voor | Gebruikt extra |
+|---|---|---|---|
+| `standaard` | Naam, herkomst, grote prijs, actiebalk bij een actietekst | alle winkels | |
+| `actie` | Rode balk, doorgestreepte van-prijs, grote rode prijs | aanbiedingen | `was_price_cents`, `promo_text` |
+| `ambachtelijk` | Zwarte kopbalk met de naam, herkomst eronder | slager, kaas, delicatessen | `origin`, `description` |
+| `vis` | Latijnse naam/vangstmethode en vangstgebied (EU-verordening 1379/2013) | viswinkel | `description`, `origin` (= vangstgebied) |
+| `bakker` | Gecentreerd, balk "Vers gebakken" of de actietekst | bakkerij | `description` |
+| `minimaal` | Naam + zo groot mogelijke prijs | kleine labels | |
+| `info` | Omschrijving over meerdere regels (ingrediënten, allergenen), prijsvlak | displays van 4,2" en groter | `description`, `was_price_cents` |
+
+- Product-velden: `was_price_cents` (van-prijs, alleen getoond als die hoger is dan de prijs),
+  `description` (max. 300 tekens) en `template` (leeg = winkelontwerp).
+- Winkelontwerp kiezen: in de webinterface van het basisstation (*Ontwerp*, met voorbeelden per
+  displaytype), op de winkelpagina in het managementsysteem, of via
+  `PUT /v1/basestation/store/settings {"label_template": "ambachtelijk"}`. Alle labels krijgen
+  daarna het nieuwe ontwerp. Producten met een eigen ontwerp blijven ongewijzigd.
+- Lijst van ontwerpen: `GET /v1/stores/{winkel}/templates`.
+- In een prijslijst-import worden de kolommen *van prijs*, *toelichting/ingrediënten* en *ontwerp*
+  ook herkend.
+- Nieuw ontwerp toevoegen: één functie in `backend/eink_cloud/label_templates.py`. De tests
+  controleren automatisch dat het op elk displaytype werkt.
+
 ## Prijslijst importeren (CSV / Excel)
 
 Voor winkels zonder API-koppeling. Denk aan de export uit weegschaal- of kassasoftware, of een

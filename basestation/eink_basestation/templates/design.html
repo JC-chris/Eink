@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Ontwerp{% endblock %}
+{% block content %}
+<h1>Labelontwerp</h1>
+{% if store %}
+<p class="muted">Kies het standaardontwerp voor alle labels van {{ store.name }}. Per product kun je bij Producten een
+  ander ontwerp kiezen, bijvoorbeeld "Actie" voor de weekaanbieding. Na het opslaan krijgen alle labels het nieuwe ontwerp.</p>
+<form method="get" class="inline" style="margin-bottom:16px">
+  <label style="margin:0">Voorbeeld op</label>
+  <select name="display_type" onchange="this.form.submit()" style="width:auto">
+    {% for d in display_types %}<option value="{{ d.id }}" {{ 'selected' if d.id == display_type }}>{{ d.description }}</option>{% endfor %}
+  </select>
+  <label class="checkbox" style="margin:0"><input type="checkbox" name="promo" value="true" {{ 'checked' if promo }} onchange="this.form.submit()"> met actie</label>
+  <noscript><button class="secondary">Tonen</button></noscript>
+</form>
+<form method="post" action="/ontwerp">
+  <div class="designs">
+    {% for t in templates %}
+    <label class="design {{ 'current' if t.id == store.label_template }}">
+      <input type="radio" name="template" value="{{ t.id }}" {{ 'checked' if t.id == store.label_template }}>
+      <img src="/ontwerp/{{ t.id }}/voorbeeld.png?display_type={{ display_type }}&promo={{ 'true' if promo else 'false' }}" alt="voorbeeld {{ t.name }}" loading="lazy">
+      <span><strong>{{ t.name }}</strong>{% if t.id == store.label_template %} <span class="badge ok">huidig</span>{% endif %}<br>
+        <span class="muted">{{ t.description }}</span><br><span class="muted"><em>{{ t.suited_for }}</em></span></span>
+    </label>
+    {% endfor %}
+  </div>
+  <p><button>Ontwerp opslaan</button></p>
+</form>
+<style>
+  .designs { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:12px; }
+  .design { display:flex; flex-direction:column; gap:8px; background:#fff; border:2px solid var(--line); border-radius:8px; padding:10px; cursor:pointer; color:var(--text); font-size:14px; }
+  .design:has(input:checked) { border-color:var(--text); }
+  .design input { width:auto; align-self:flex-start; }
+  .design img { width:100%; height:auto; border:1px solid var(--line); image-rendering:pixelated; background:#fff; }
+</style>
+{% endif %}
+{% endblock %}

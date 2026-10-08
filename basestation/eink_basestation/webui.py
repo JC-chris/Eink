@@ -31,7 +31,8 @@ SESSION_COOKIE = "eink_session"
 SESSION_TTL_S = 12 * 3600
 DEFAULT_DISPLAY_TYPE = "bwry_2_9"  # meest gebruikte vitrinelabel; later meldt het label zijn type zelf
 IMPORT_FIELDS = {"sku": "Artikelnummer / PLU", "name": "Naam", "price": "Prijs", "unit": "Eenheid",
-                 "unit_price": "Prijs per kg (voorverpakt)", "origin": "Herkomst", "promo_text": "Actietekst"}
+                 "unit_price": "Prijs per kg (voorverpakt)", "origin": "Herkomst", "promo_text": "Actietekst",
+                 "was_price": "Van-prijs", "description": "Omschrijving", "template": "Ontwerp"}
 UNITS = {"st": "per stuk", "kg": "per kg", "100g": "per 100 g", "l": "per liter", "pak": "per pak"}
 
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
@@ -195,7 +196,14 @@ def create_webui(config: Config, config_path: Path, agent: Agent, client_factory
             except CloudError as exc:
                 err = str(exc)
         editing = next((p for p in items if p["sku"] == edit), None)
-        return render(request, "products.html", store=store, products=items, editing=editing, units=UNITS, err=err)
+        templates_list = []
+        if store:
+            try:
+                templates_list = cloud().templates()
+            except CloudError:
+                pass
+        return render(request, "products.html", store=store, products=items, editing=editing, units=UNITS, err=err,
+                      templates=templates_list)
 
     @app.post("/producten", dependencies=[Depends(require_login)])
     def save_product(
@@ -206,6 +214,9 @@ def create_webui(config: Config, config_path: Path, agent: Agent, client_factory
         unit_price: str = Form(""),
         origin: str = Form(""),
         promo_text: str = Form(""),
+        was_price: str = Form(""),
+        description: str = Form(""),
+        template: str = Form(""),
     ):
         sku = sku.strip()
         state = license_state()
@@ -222,12 +233,50 @@ def create_webui(config: Config, config_path: Path, agent: Agent, client_factory
                 "unit_price_cents": parse_euro(unit_price),
                 "origin": origin.strip() or None,
                 "promo_text": promo_text.strip() or None,
+                "was_price_cents": parse_euro(was_price),
+                "description": description.strip() or None,
+                "template": template or None,
             }
             result = cloud().upsert_product(sku, body)
         except (ValueError, CloudError) as exc:
             return _redirect("/producten" + (f"?edit={quote(sku)}" if sku else ""), err=str(exc))
         n = result["labels_scheduled"]
         return _redirect("/producten", msg=f"{name} opgeslagen" + (f", {n} label(s) worden bijgewerkt" if n else ""))
+
+    # --- labelontwerp ------------------------------------------------------------------------
+
+    @app.get("/ontwerp", response_class=HTMLResponse, dependencies=[Depends(require_login)])
+    def design_page(request: Request, display_type: str = "", promo: bool = False):
+        store, err = store_or_error()
+        templates_list, display_types, labels = [], [], []
+        if store:
+            try:
+                c = cloud()
+                templates_list, display_types, labels = c.templates(), c.display_types(), c.labels()
+            except CloudError as exc:
+                err = str(exc)
+        # Standaard het displaytype dat de winkel het meest heeft.
+        counts: dict[str, int] = {}
+        for label in labels:
+            counts[label["display_type"]] = counts.get(label["display_type"], 0) + 1
+        chosen = display_type or (max(counts, key=counts.get) if counts else "bwry_2_9")
+        return render(request, "design.html", store=store, err=err, templates=templates_list,
+                      display_types=display_types, display_type=chosen, promo=promo)
+
+    @app.get("/ontwerp/{template}/voorbeeld.png", dependencies=[Depends(require_login)])
+    def design_preview(template: str, display_type: str = "bwry_2_9", promo: bool = False, sku: str = ""):
+        try:
+            return Response(cloud().template_preview(template, display_type, sku or None, promo), media_type="image/png")
+        except CloudError as exc:
+            return Response(str(exc), status_code=404)
+
+    @app.post("/ontwerp", dependencies=[Depends(require_login)])
+    def set_design(template: str = Form(...)):
+        try:
+            cloud().set_label_template(template)
+        except CloudError as exc:
+            return _redirect("/ontwerp", err=str(exc))
+        return _redirect("/ontwerp", msg="Ontwerp opgeslagen; alle labels krijgen het nieuwe ontwerp")
 
     # --- prijslijst importeren (CSV/Excel) ---------------------------------------------------
 
