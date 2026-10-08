@@ -41,6 +41,9 @@ class Config:
     # Verbindingslaag managementsysteem: in de fabriek gezet (anders vastgezet bij eerste verbinding).
     license_public_key: str = ""
     basestation_id: str = ""
+    # Importmap: weegschaal-/kassasoftware zet hier een prijslijst-export neer (bv. via een netwerkshare).
+    import_enabled: bool = False
+    import_dir: str = "/var/lib/eink-basestation/import"
 
     @classmethod
     def load(cls, path: Path) -> "Config":

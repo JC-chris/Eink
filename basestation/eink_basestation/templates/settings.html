@@ -8,14 +8,34 @@
   {% if store %}
   <form method="post" action="/instellingen/prijsbron">
     <label class="choice"><input type="radio" name="price_source" value="pos" {{ 'checked' if store.price_source == 'pos' }}>
-      <span><strong>Kassasysteem</strong><br><span class="muted">Prijzen komen automatisch uit de kassa of weegschaal. Wijzigen in deze webinterface is uitgeschakeld.</span></span></label>
+      <span><strong>Kassa of weegschaal</strong><br><span class="muted">Prijzen komen automatisch uit de kassa (koppeling) of uit een export van de weegschaalsoftware in de importmap hieronder. Wijzigen in deze webinterface is uitgeschakeld.</span></span></label>
     <label class="choice"><input type="radio" name="price_source" value="manual" {{ 'checked' if store.price_source == 'manual' }}>
-      <span><strong>Webinterface</strong><br><span class="muted">Geen kassakoppeling: producten en prijzen beheert u zelf onder Producten. Updates vanuit de kassa worden dan geweigerd.</span></span></label>
+      <span><strong>Webinterface</strong><br><span class="muted">Geen kassakoppeling: producten en prijzen beheert u zelf onder Producten, met de hand of door een Excel/CSV-prijslijst te uploaden. Updates vanuit de kassa worden dan geweigerd.</span></span></label>
     <button>Opslaan</button>
   </form>
   {% else %}
   <p class="muted">Beschikbaar zodra de cloudverbinding werkt.{% if cloud_err %} <code>{{ cloud_err }}</code>{% endif %}</p>
   {% endif %}
+</div>
+
+<div class="card">
+  <h2>Importmap voor weegschaal- of kassa-export</h2>
+  <p class="muted">Laat de weegschaal- of kassasoftware zijn prijslijst (CSV/Excel) exporteren naar deze map, bijvoorbeeld via
+    de netwerkshare van het basisstation. Nieuwe bestanden worden binnen een halve minuut verwerkt en verplaatst naar
+    <code>verwerkt/</code> of <code>fout/</code>, met een resultaatbestand ernaast. Importeer de eerste export één keer via
+    Producten → importeren (met prijsbron Webinterface) om de kolomindeling vast te leggen; zet daarna de prijsbron op Kassa of weegschaal.</p>
+  <table style="margin-bottom:12px">
+    <tr><td class="muted">Map</td><td><code>{{ config.import_dir }}</code></td></tr>
+    {% if last_import %}
+    <tr><td class="muted">Laatste import</td><td>{{ last_import.at.strftime('%d-%m-%Y %H:%M') }} · {{ last_import.filename }} ·
+      {% if last_import.ok %}<span class="badge ok">{{ last_import.message }}</span>{% else %}<span class="badge err">{{ last_import.message }}</span>{% endif %}</td></tr>
+    {% endif %}
+  </table>
+  <form method="post" action="/instellingen/importmap">
+    <label class="choice"><input type="checkbox" name="enabled" {{ 'checked' if config.import_enabled }}>
+      <span>Importmap gebruiken</span></label>
+    <button class="secondary">Opslaan</button>
+  </form>
 </div>
 
 <div class="card">

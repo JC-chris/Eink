@@ -10,7 +10,7 @@ from .displays import DISPLAY_TYPES
 from .jobs import content_for, schedule_label_update, schedule_product_update
 from .models import Label, Product, Store, utcnow
 from .render import quantize, render_image
-from .schemas import LabelCreate, LabelOut, ProductIn, ProductUpdateResult
+from .schemas import LabelCreate, LabelOut, PriceImportIn, PriceImportOut, ProductIn, ProductUpdateResult
 from .subscriptions import audit
 
 PRICE_SOURCE_NAMES = {"pos": "de kassa", "manual": "de webinterface van het basisstation"}
@@ -36,6 +36,40 @@ def upsert_product(session: Session, store: Store, sku: str, body: ProductIn) ->
     product.updated_at = utcnow()
     session.flush()
     return ProductUpdateResult(sku=sku, labels_scheduled=schedule_product_update(session, product))
+
+
+def import_price_file(session: Session, store: Store, body: PriceImportIn, actor: str) -> PriceImportOut:
+    """Prijslijst controleren (dry_run) of importeren. Alles of niets: met fouten wordt niets ingelezen."""
+    import base64
+    import binascii
+    import json
+
+    from .pricefile import FIELD_LABELS, PriceFileError, build_items, guess_mapping, read_table
+
+    try:
+        data = base64.b64decode(body.content_b64, validate=True)
+    except (binascii.Error, ValueError):
+        raise HTTPException(422, "bestand niet goed meegestuurd (geen geldige base64)") from None
+    try:
+        table = read_table(data, body.filename)
+        saved = json.loads(store.import_mapping) if store.import_mapping else None
+        mapping = body.mapping if body.mapping is not None else (
+            saved if saved and all(c in table.columns for c in saved.values()) else guess_mapping(table.columns))
+        result = build_items(table, mapping, body.default_unit)
+    except PriceFileError as exc:
+        raise HTTPException(422, str(exc)) from None
+
+    out = PriceImportOut(dry_run=body.dry_run, columns=result.columns, mapping=result.mapping, fields=FIELD_LABELS,
+                         rows_total=result.rows_total, valid=len(result.items), skipped=result.skipped,
+                         errors=result.errors[:200], preview=result.items[:20])
+    if body.dry_run or result.errors or not result.items:
+        return out
+    scheduled = sum(upsert_product(session, store, item.sku, item).labels_scheduled for item in result.items)
+    store.import_mapping = json.dumps(result.mapping)
+    audit(session, actor, "price_import", store.customer_id, store.id,
+          f"{body.filename}: {len(result.items)} producten, {scheduled} labels bijgewerkt")
+    out.imported, out.labels_scheduled = len(result.items), scheduled
+    return out
 
 
 def list_products(session: Session, store: Store) -> list[Product]:

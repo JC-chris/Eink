@@ -19,8 +19,8 @@ from ..displays import DISPLAY_TYPES
 from ..jobs import claim_jobs, record_result
 from ..models import BaseStation, Customer, Label, PriceSource, Store, UpdateJob, utcnow
 from ..schemas import (
-    Heartbeat, JobOut, JobResult, LabelCreate, LabelLink, LabelOut, LabelTelemetry, ProductIn, ProductOut,
-    ProductUpdateResult, StoreInfo, StoreSettings,
+    Heartbeat, JobOut, JobResult, LabelCreate, LabelLink, LabelOut, LabelTelemetry, PriceImportIn, PriceImportOut,
+    ProductIn, ProductOut, ProductUpdateResult, StoreInfo, StoreSettings,
 )
 
 router = APIRouter(prefix="/v1/basestation", tags=["basisstation"])
@@ -121,6 +121,23 @@ def upsert_product(sku: str, body: ProductIn, store: Store = Depends(station_sto
     require_service(session, store)
     catalog.require_price_source(store, PriceSource.MANUAL)
     result = catalog.upsert_product(session, store, sku, body)
+    session.commit()
+    return result
+
+
+@router.post("/store/products:import", response_model=PriceImportOut)
+def import_products(body: PriceImportIn, source: str = "upload", store: Store = Depends(station_store),
+                    bs: BaseStation = Depends(require_basestation), session: Session = Depends(get_session)):
+    """Prijslijst via het basisstation.
+
+    `source=upload`: CSV/Excel geüpload in de webinterface (prijsbron *webinterface*).
+    `source=folder`: export die weegschaal- of kassasoftware in de importmap zette (prijsbron *kassa*).
+    """
+    if source not in ("upload", "folder"):
+        raise HTTPException(422, "source moet 'upload' of 'folder' zijn")
+    require_service(session, store)
+    catalog.require_price_source(store, PriceSource.MANUAL if source == "upload" else PriceSource.POS)
+    result = catalog.import_price_file(session, store, body, f"basisstation:{bs.id}:{source}")
     session.commit()
     return result
 

@@ -73,6 +73,8 @@ class Store(Base):
     name: Mapped[str] = mapped_column(String(200))
     api_key: Mapped[str] = mapped_column(String(64), unique=True)
     customer_id: Mapped[str | None] = mapped_column(ForeignKey("customers.id"))
+    # Laatst gebruikte kolomindeling voor prijslijst-import (JSON), zodat vaste exports vanzelf werken.
+    import_mapping: Mapped[str | None] = mapped_column(String(2000))
     # Afgeleid van het abonnement; bijgehouden zodat de overgang (labels neutraal) één keer gebeurt.
     service_state: Mapped[str] = mapped_column(String(16), default=ServiceState.ACTIVE)
     # Wie de prijzen beheert: "pos" (kassa via API) of "manual" (webinterface basisstation).

@@ -9,7 +9,8 @@ from ..auth import require_store
 from ..db import get_session
 from ..models import PriceSource, Store
 from ..schemas import (
-    LabelCreate, LabelLink, LabelOut, ProductBatchItem, ProductIn, ProductOut, ProductUpdateResult, StoreInfo,
+    LabelCreate, LabelLink, LabelOut, PriceImportIn, PriceImportOut, ProductBatchItem, ProductIn, ProductOut,
+    ProductUpdateResult, StoreInfo,
 )
 
 router = APIRouter(prefix="/v1/stores/{store_id}", tags=["kassa"])
@@ -40,6 +41,20 @@ def upsert_products(body: list[ProductBatchItem], store: Store = Depends(require
     results = [catalog.upsert_product(session, store, item.sku, item) for item in body]
     session.commit()
     return results
+
+
+@router.post("/products:import", response_model=PriceImportOut)
+def import_products(body: PriceImportIn, store: Store = Depends(require_store), session: Session = Depends(get_session)):
+    """Prijslijst (CSV of Excel) inlezen, bv. de export van weegschaal- of kassasoftware.
+
+    Eerst met `dry_run: true` controleren; de kolomindeling wordt na een geslaagde import bewaard,
+    zodat volgende exports zonder `mapping` werken.
+    """
+    require_service(session, store)
+    catalog.require_price_source(store, PriceSource.POS)
+    result = catalog.import_price_file(session, store, body, f"kassa:{store.id}")
+    session.commit()
+    return result
 
 
 @router.get("/products", response_model=list[ProductOut])

@@ -105,10 +105,10 @@ op pc, tablet of telefoon:
 | Pagina | Wat |
 |---|---|
 | **Status** | Cloudverbinding, labels in bereik, gelukte/mislukte updates, laatste fout |
-| **Producten** | Producten en prijzen beheren (alleen in modus *webinterface*; anders alleen-lezen) |
+| **Producten** | Producten en prijzen beheren, met de hand of met een **Excel/CSV-prijslijst** (alleen in modus *webinterface*; anders alleen-lezen) |
 | **Labels** | Nieuwe labels in bereik registreren, koppelen aan een product, preview, opnieuw sturen |
 | **Netwerk** | Status Ethernet/Wi-Fi (IP, gateway, DNS, signaal), Ethernet DHCP of vast IP, Wi-Fi zoeken/verbinden/vergeten, installatie-hotspot |
-| **Instellingen** | **Prijsbron** (kassa ↔ webinterface), cloudserver + token, wachtwoord, apparaatinfo |
+| **Instellingen** | **Prijsbron** (kassa/weegschaal ↔ webinterface), **importmap**, cloudserver + token, wachtwoord, apparaatinfo |
 
 **Prijsbron omschakelen.** Een winkel zonder kassakoppeling zet de prijsbron op *Webinterface*
 en beheert prijzen dan zelf. Om te voorkomen dat kassa en webinterface elkaars prijzen
@@ -126,6 +126,24 @@ formulieren, sessies vervallen na wachtwoordwijziging. Later: HTTPS met apparaat
 **Beperking (nog te bouwen):** de webinterface heeft internet nodig, omdat de cloud de beelden
 rendert. Volgende stap: rendering en een wachtrij lokaal op het basisstation, zodat prijswijzigingen
 ook tijdens een internetstoring direct op de labels komen en later worden gesynchroniseerd.
+
+## Importmap voor exports van weegschaal of kassa
+
+Veel slagers en bakkers hebben een weegschaal-kassa (Bizerba, Mettler Toledo, Digi, Dibal). De
+prijzen staan dan in de weegschaalsoftware, en die kan een artikellijst exporteren. Het
+basisstation pakt die export op:
+
+1. Zet in de webinterface bij *Instellingen* de **importmap** aan (standaard
+   `/var/lib/eink-basestation/import`).
+2. Maak die map bereikbaar voor de pc met weegschaalsoftware. Bijvoorbeeld een Samba-share die
+   alleen in het winkelnetwerk zichtbaar is, met een eigen wachtwoord per apparaat
+   (EN 18031: geen standaardwachtwoord). Stel in de weegschaalsoftware in dat de export daarheen gaat.
+3. **Eerste keer:** importeer één export via *Producten → importeren* (prijsbron *Webinterface*)
+   en bevestig de kolommen. Zet daarna de prijsbron op *Kassa of weegschaal*.
+4. Daarna verwerkt het basisstation elke nieuwe export binnen een halve minuut (zodra het bestand
+   niet meer groeit). Het verplaatst het bestand naar `verwerkt/` of `fout/`, met een
+   `.resultaat.txt` ernaast. De laatste import staat ook op de statuspagina.
+5. Is de cloud tijdelijk onbereikbaar, dan blijft het bestand staan en volgt later een nieuwe poging.
 
 ## Installatie in de winkel
 

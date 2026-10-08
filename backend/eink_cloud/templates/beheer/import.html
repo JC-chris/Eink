@@ -1,0 +1,75 @@
+{% extends "beheer/base.html" %}
+{% block title %}Prijslijst importeren{% endblock %}
+{% block content %}
+<h1>Prijslijst importeren — {{ store.name }}</h1>
+<p class="muted"><a href="/beheer/winkels/{{ store.id }}">← terug naar de winkel</a> ·
+  CSV (puntkomma, komma of tab) of Excel (.xlsx). Eerste regel = kolomnamen. Producten die al bestaan worden bijgewerkt,
+  nieuwe worden toegevoegd. Labels krijgen direct de nieuwe prijs.</p>
+
+{% if not result %}
+<div class="card">
+  <form method="post" action="/beheer/winkels/{{ store.id }}/import" enctype="multipart/form-data">
+    <p><label>Bestand</label><input type="file" name="file" accept=".csv,.txt,.xlsx" required></p>
+    <button>Controleren</button>
+  </form>
+  <p class="muted" style="margin-bottom:0">Voorbeeld van een goed bestand:</p>
+  <pre style="background:#f0f0ea; padding:10px; border-radius:6px; overflow-x:auto">PLU;Omschrijving;Prijs;Eenheid;Herkomst;Actie
+1001;Runderbiefstuk;29,95;kg;Nederland;Weekaanbieding
+2001;Slavink;1,85;st;;</pre>
+</div>
+{% else %}
+<form method="post" action="/beheer/winkels/{{ store.id }}/import">
+  <input type="hidden" name="content_b64" value="{{ content_b64 }}">
+  <input type="hidden" name="filename" value="{{ filename }}">
+  <input type="hidden" name="mapped" value="1">
+  <div class="card">
+    <h2>{{ filename }} — {{ result.rows_total }} regels</h2>
+    <p class="muted">Controleer welke kolom bij welk veld hoort. Deze indeling wordt na het importeren bewaard voor de volgende keer.</p>
+    <div class="row">
+      {% for f, label in fields.items() %}
+      <div><label>{{ label }}{{ ' *' if f in ('sku', 'name', 'price') }}</label>
+        <select name="map_{{ f }}">
+          <option value="">— geen —</option>
+          {% for c in result.columns %}<option value="{{ c }}" {{ 'selected' if result.mapping.get(f) == c }}>{{ c }}</option>{% endfor %}
+        </select></div>
+      {% endfor %}
+      <div><label>Eenheid als er geen kolom is</label>
+        <select name="default_unit">{% for u, n in [('st', 'per stuk'), ('kg', 'per kg'), ('100g', 'per 100 g'), ('l', 'per liter'), ('pak', 'per pak')] %}<option value="{{ u }}" {{ 'selected' if default_unit == u }}>{{ n }}</option>{% endfor %}</select></div>
+    </div>
+    <div class="kpis">
+      <div class="kpi good"><div class="v">{{ result.valid }}</div><div class="k">Goede regels</div></div>
+      <div class="kpi {{ 'bad' if result.errors }}"><div class="v">{{ result.errors | length }}</div><div class="k">Fouten</div></div>
+      <div class="kpi"><div class="v">{{ result.skipped }}</div><div class="k">Lege regels overgeslagen</div></div>
+    </div>
+    <div class="inline">
+      <button name="action" value="preview" class="secondary">Opnieuw controleren</button>
+      <button name="action" value="import" {{ 'disabled' if result.errors or not result.valid }}>
+        {{ 'Los eerst de fouten op' if result.errors else result.valid ~ ' producten importeren' }}</button>
+    </div>
+  </div>
+</form>
+
+{% if result.errors %}
+<div class="card scroll">
+  <h2>Fouten{% if result.errors | length >= 200 %} (eerste 200){% endif %}</h2>
+  <table>
+    <tr><th>Regel</th><th>Probleem</th></tr>
+    {% for e in result.errors %}<tr><td>{{ e.row or '—' }}</td><td>{{ e.message }}</td></tr>{% endfor %}
+  </table>
+</div>
+{% endif %}
+
+<div class="card scroll">
+  <h2>Voorbeeld (eerste {{ result.preview | length }})</h2>
+  <table>
+    <tr><th>Artikel</th><th>Naam</th><th class="num">Prijs</th><th>Eenheid</th><th class="num">Per kg</th><th>Herkomst</th><th>Actie</th></tr>
+    {% for p in result.preview %}
+    <tr><td>{{ p.sku }}</td><td>{{ p.name }}</td><td class="num">{{ p.price_cents | euro }}</td><td>{{ p.unit }}</td>
+      <td class="num">{{ p.unit_price_cents | euro }}</td><td>{{ p.origin or '' }}</td><td>{{ p.promo_text or '' }}</td></tr>
+    {% else %}
+    <tr><td colspan="7" class="muted">Geen goede regels.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+{% endblock %}

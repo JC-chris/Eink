@@ -159,6 +159,7 @@ def main() -> None:
     import uvicorn
 
     from .cloud import default_client_factory
+    from .folder_import import FolderImporter, start_folder_importer
     from .network import NetworkWatchdog, SimulatedNetwork, detect_backend, start_watchdog
     from .webui import create_webui
 
@@ -206,7 +207,10 @@ def main() -> None:
     start_watchdog(NetworkWatchdog(network, config.hotspot_ssid, config.hotspot_password,
                                    enabled=lambda: config.hotspot_enabled))
 
-    app = create_webui(config, args.config, agent, default_client_factory, network, license)
+    importer = FolderImporter(config, default_client_factory)
+    start_folder_importer(importer)
+
+    app = create_webui(config, args.config, agent, default_client_factory, network, license, importer)
     uvicorn.run(app, host="0.0.0.0", port=config.web_port, log_level="warning")
 
 

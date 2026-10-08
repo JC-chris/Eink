@@ -39,6 +39,46 @@ POST /v1/stores/slagerij-jansen/products:batch
 [{ "sku": "1001", "name": "...", "price_cents": 1295, "unit": "kg" }, ...]
 ```
 
+## Prijslijst importeren (CSV / Excel)
+
+Voor winkels zonder API-koppeling. Denk aan de export uit weegschaal- of kassasoftware, of een
+Excel-lijst die de winkel zelf bijhoudt.
+
+```
+PLU;Omschrijving;Prijs;Eenheid;Herkomst;Actie
+1001;Runderbiefstuk;29,95;kg;Nederland;Weekaanbieding
+2001;Slavink;1,85;st;;
+```
+
+- **Formaten:** CSV (puntkomma, komma, tab of `|`; UTF-8 of Windows-tekenset) en Excel (.xlsx,
+  eerste werkblad). Oud .xls niet: sla dat op als .xlsx.
+- **Kolommen** worden herkend op naam:
+  - artikelnummer: *PLU, artikelnummer, art.nr, code, EAN*;
+  - naam: *omschrijving, naam, artikel*;
+  - prijs: *prijs, verkoopprijs, VK prijs*;
+  - verder: eenheid, prijs per kg, herkomst, actie.
+
+  Wordt een kolom niet herkend, dan kies je hem zelf. Na een geslaagde import wordt die indeling
+  **per winkel bewaard**, zodat dezelfde export daarna vanzelf goed gaat.
+- **Prijzen** mogen als `29,95`, `€ 1.234,50` of `29.95`. Eenheid: `kg`, `st`/`stuk`, `100g`, `l`,
+  `pak`, of ja/nee bij een kolom "weegartikel".
+- **Eerst controleren, dan importeren.** Het voorbeeld toont fouten per regelnummer. Zolang er
+  fouten zijn, wordt **niets** ingelezen (alles of niets). Bestaande producten worden bijgewerkt,
+  nieuwe toegevoegd; alleen labels waarvan de prijs echt verandert, krijgen een update.
+
+Waar kan het:
+
+| Waar | Wie | Prijsbron |
+|---|---|---|
+| Webinterface basisstation → *Producten* → *importeren* | winkel | Webinterface |
+| **Importmap** op het basisstation (automatisch, zie [basisstation](03-basisstation.md#importmap-voor-exports-van-weegschaal-of-kassa)) | weegschaal-/kassasoftware | Kassa of weegschaal |
+| Managementsysteem → winkel → *Prijslijst importeren* | onze support / installatie | elke |
+| API `POST /v1/stores/{winkel}/products:import` (`filename`, `content_b64`, `dry_run`, optioneel `mapping`) | dealer, scriptje op de winkel-pc | Kassa |
+
+**Nog niet:** producten die niet meer in de lijst staan, worden niet verwijderd. Merkspecifieke
+formaten (bijvoorbeeld XML uit Mettler Toledo RetailSuite) komen erbij zodra er voorbeeldbestanden
+zijn. Ze gebruiken dezelfde importstappen.
+
 ## Labels koppelen
 
 ```http
@@ -53,9 +93,9 @@ GET  /v1/stores/slagerij-jansen/labels/C0:FF:EE:00:00:01/preview.png → exact b
 | Klant | Hoe |
 |---|---|
 | Moderne kassa (Lightspeed, Shopify POS, eigen kassa) | Direct de REST-API, of een kleine connector die hun webhook ("product gewijzigd") vertaalt naar `PUT /products/{sku}` |
-| Slager/bakker met **weegschaal-kassa** (Bizerba, Mettler Toledo, Dibal, Digi) | Weegschaalsoftware exporteert PLU-bestand (CSV/XML) → **importer** (fase 2) via SFTP of een map op het basisstation |
+| Slager/bakker met **weegschaal-kassa** (Bizerba, Mettler Toledo, Dibal, Digi, Avery Berkel) | Weegschaalsoftware exporteert de PLU-lijst als CSV/Excel naar de **importmap** van het basisstation. Eerste keer de kolomindeling bevestigen, daarna automatisch. XML-formaten per merk volgen met voorbeeldbestanden |
 | Supermarkt met ERP/HQ-prijzen | Nachtelijke batch + losse updates bij acties |
-| Geen koppeling | **Webinterface op het basisstation** (prijsbron *webinterface*): winkel beheert zelf producten en prijzen |
+| Geen koppeling | **Webinterface op het basisstation** (prijsbron *webinterface*): winkel beheert zelf producten en prijzen, met de hand of met een Excel/CSV-upload |
 
 ## Prijsaanduiding (wettelijk)
 

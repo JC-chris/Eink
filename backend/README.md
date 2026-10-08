@@ -24,6 +24,7 @@ Modules:
 | `api/monitoring.py` | Overzicht, alerts, `/metrics` (Prometheus) |
 | `api/manage.py` | Management-API voor facturatie/CRM |
 | `api/beheer.py` + `templates/beheer/` | Webinterface managementsysteem (`/beheer`) |
+| `pricefile.py` | Prijslijsten (CSV/Excel) lezen, kolommen herkennen, regels controleren |
 | `inventory.py` | Voorraad, labels/basisstations koppelen aan winkel, vast basisstation, gehoorde labels |
 | `subscriptions.py` | Abonnementen: opzeggen, uitschakelen, heractiveren, auditlog |
 | `licensing.py` | Ondertekende licenties voor de wekelijkse check-in |

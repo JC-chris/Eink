@@ -6,7 +6,8 @@
   {% set manual = store.price_source == 'manual' and (not license or license.prices_editable) %}
   {% if manual %}
   <div class="card">
-    <h2>{{ 'Product bewerken' if editing else 'Product toevoegen' }}</h2>
+    <h2>{{ 'Product bewerken' if editing else 'Product toevoegen' }}
+      {% if not editing %}<a href="/producten/import" style="font-size:14px; font-weight:normal; margin-left:8px">of een Excel/CSV-prijslijst importeren</a>{% endif %}</h2>
     <form method="post" action="/producten">
       <div class="row">
         <div><label for="sku">Artikelnummer / PLU</label>

@@ -29,6 +29,12 @@
   </table>
   <p><a href="/netwerk">Netwerk instellen</a></p>
 </div>
+{% if last_import %}
+<div class="card"><h2>Laatste import uit de importmap</h2>
+  <p>{{ last_import.at.strftime('%d-%m-%Y %H:%M') }} · {{ last_import.filename }} ·
+  {% if last_import.ok %}<span class="badge ok">{{ last_import.message }}</span>{% else %}<span class="badge err">{{ last_import.message }}</span>{% endif %}</p>
+</div>
+{% endif %}
 {% if agent.last_error %}<div class="card"><h2>Laatste fout</h2><code>{{ agent.last_error }}</code></div>{% endif %}
 {% if cloud_err %}<div class="card"><h2>Cloud</h2><code>{{ cloud_err }}</code></div>{% endif %}
 {% if store %}

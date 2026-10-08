@@ -271,3 +271,25 @@ class ShipmentOut(BaseModel):
 
 class BaseStationAssignIn(BaseModel):
     store_id: str | None = Field(description="null = terug naar voorraad")
+
+
+class PriceImportIn(BaseModel):
+    filename: str = Field(max_length=200, examples=["prijzen.csv"])
+    content_b64: str = Field(description="inhoud van het CSV- of Excel-bestand, base64")
+    mapping: dict[str, str] | None = Field(None, description="productveld → kolomnaam; leeg = bewaarde of herkende indeling")
+    dry_run: bool = Field(True, description="true = alleen controleren en voorbeeld tonen")
+    default_unit: Literal["st", "kg", "100g", "l", "pak"] = "st"
+
+
+class PriceImportOut(BaseModel):
+    dry_run: bool
+    columns: list[str]
+    mapping: dict[str, str]
+    fields: dict[str, str]
+    rows_total: int
+    valid: int
+    skipped: int
+    errors: list[dict]
+    preview: list[ProductBatchItem]
+    imported: int = 0
+    labels_scheduled: int = 0

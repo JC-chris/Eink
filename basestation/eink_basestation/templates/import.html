@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Prijslijst importeren{% endblock %}
+{% block content %}
+<h1>Prijslijst importeren {% include "_price_source.html" %}</h1>
+<p class="muted"><a href="/producten">← terug naar producten</a> · Excel (.xlsx) of CSV. De eerste regel bevat de kolomnamen.
+  Bestaande producten worden bijgewerkt, nieuwe toegevoegd. De labels krijgen direct de nieuwe prijs.</p>
+
+{% if store and store.price_source != 'manual' %}
+<div class="flash err" style="background:#fff3dc;color:#7a4d00">Deze winkel staat op prijzen via de kassa. Uploaden kan alleen
+  als de prijsbron op <a href="/instellingen">Webinterface</a> staat. Gebruik anders de importmap voor exports uit de weegschaal.</div>
+{% endif %}
+
+{% if not result %}
+<div class="card">
+  <form method="post" action="/producten/import" enctype="multipart/form-data">
+    <p><label for="file">Bestand</label><input id="file" type="file" name="file" accept=".csv,.txt,.xlsx" required></p>
+    <button>Controleren</button>
+  </form>
+  <p class="muted">Zo ziet een goed bestand eruit (Excel of CSV):</p>
+  <div class="scroll"><table style="width:auto">
+    <tr><th>PLU</th><th>Omschrijving</th><th>Prijs</th><th>Eenheid</th><th>Herkomst</th><th>Actie</th></tr>
+    <tr><td>1001</td><td>Runderbiefstuk</td><td>29,95</td><td>kg</td><td>Nederland</td><td>Weekaanbieding</td></tr>
+    <tr><td>2001</td><td>Slavink</td><td>1,85</td><td>st</td><td></td><td></td></tr>
+  </table></div>
+</div>
+{% else %}
+<form method="post" action="/producten/import">
+  <input type="hidden" name="content_b64" value="{{ content_b64 }}">
+  <input type="hidden" name="filename" value="{{ filename }}">
+  <input type="hidden" name="mapped" value="1">
+  <div class="card">
+    <h2>{{ filename }} — {{ result.rows_total }} regels</h2>
+    <p class="muted">Klopt de indeling? Pas zo nodig aan welke kolom bij welk veld hoort.</p>
+    <div class="row">
+      {% for f, label in fields.items() %}
+      <div><label>{{ label }}{{ ' *' if f in ('sku', 'name', 'price') }}</label>
+        <select name="map_{{ f }}"><option value="">— geen —</option>
+          {% for c in result.columns %}<option value="{{ c }}" {{ 'selected' if result.mapping.get(f) == c }}>{{ c }}</option>{% endfor %}
+        </select></div>
+      {% endfor %}
+      <div><label>Eenheid als er geen kolom is</label>
+        <select name="default_unit">{% for u, n in [('st', 'per stuk'), ('kg', 'per kg'), ('100g', 'per 100 g'), ('l', 'per liter'), ('pak', 'per pak')] %}<option value="{{ u }}" {{ 'selected' if default_unit == u }}>{{ n }}</option>{% endfor %}</select></div>
+    </div>
+    <p><strong>{{ result.valid }}</strong> goede regels · <strong>{{ result.errors | length }}</strong> fouten · {{ result.skipped }} lege regels overgeslagen</p>
+    <div class="inline">
+      <button name="action" value="preview" class="secondary">Opnieuw controleren</button>
+      <button name="action" value="import" {{ 'disabled' if result.errors or not result.valid }}>
+        {{ 'Los eerst de fouten op' if result.errors else result.valid ~ ' producten importeren' }}</button>
+    </div>
+  </div>
+</form>
+{% if result.errors %}
+<div class="card scroll">
+  <h2>Fouten</h2>
+  <table><tr><th>Regel</th><th>Probleem</th></tr>
+    {% for e in result.errors %}<tr><td>{{ e.row or '—' }}</td><td>{{ e.message }}</td></tr>{% endfor %}</table>
+</div>
+{% endif %}
+<div class="card scroll">
+  <h2>Voorbeeld</h2>
+  <table><tr><th>Artikel</th><th>Naam</th><th>Prijs</th><th>Per kg</th><th>Herkomst</th><th>Actie</th></tr>
+    {% for p in result.preview %}
+    <tr><td>{{ p.sku }}</td><td>{{ p.name }}</td><td><strong>{{ p.price_cents | euro }}</strong>{% if p.unit != 'st' %} /{{ p.unit }}{% endif %}</td>
+      <td>{{ p.unit_price_cents | euro }}</td><td>{{ p.origin or '' }}</td><td>{{ p.promo_text or '' }}</td></tr>
+    {% else %}<tr><td colspan="6" class="muted">Geen goede regels.</td></tr>{% endfor %}
+  </table>
+</div>
+{% endif %}
+{% endblock %}

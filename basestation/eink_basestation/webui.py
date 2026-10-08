@@ -15,7 +15,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from urllib.parse import quote, urlsplit
 
-from fastapi import Depends, FastAPI, Form, Request, Response
+from fastapi import Depends, FastAPI, File, Form, Request, Response, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
@@ -23,12 +23,15 @@ from . import __version__
 from .agent import Agent
 from .cloud import ClientFactory, Cloud, CloudError
 from .config import Config, hash_password, verify_password
+from .folder_import import FolderImporter
 from .license import LicenseManager, LicenseState
 from .network import EthernetConfig, NetworkBackend, NetworkError, SimulatedNetwork, online
 
 SESSION_COOKIE = "eink_session"
 SESSION_TTL_S = 12 * 3600
 DEFAULT_DISPLAY_TYPE = "bwry_2_9"  # meest gebruikte vitrinelabel; later meldt het label zijn type zelf
+IMPORT_FIELDS = {"sku": "Artikelnummer / PLU", "name": "Naam", "price": "Prijs", "unit": "Eenheid",
+                 "unit_price": "Prijs per kg (voorverpakt)", "origin": "Herkomst", "promo_text": "Actietekst"}
 UNITS = {"st": "per stuk", "kg": "per kg", "100g": "per 100 g", "l": "per liter", "pak": "per pak"}
 
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
@@ -91,7 +94,8 @@ def _ip_addresses() -> list[str]:
 
 
 def create_webui(config: Config, config_path: Path, agent: Agent, client_factory: ClientFactory,
-                 network: NetworkBackend | None = None, license: LicenseManager | None = None) -> FastAPI:
+                 network: NetworkBackend | None = None, license: LicenseManager | None = None,
+                 importer: FolderImporter | None = None) -> FastAPI:
     app = FastAPI(title="Eink basisstation", docs_url=None, redoc_url=None, openapi_url=None)
     network = network or SimulatedNetwork()
 
@@ -176,7 +180,8 @@ def create_webui(config: Config, config_path: Path, agent: Agent, client_factory
         store, err = store_or_error() if config.token else (None, None)
         interfaces, _ = network_status()
         return render(request, "status.html", store=store, cloud_err=err, agent=agent.status,
-                      uptime_s=agent.uptime_s, configured=bool(config.token), interfaces=interfaces)
+                      uptime_s=agent.uptime_s, configured=bool(config.token), interfaces=interfaces,
+                      last_import=importer.last if importer else None)
 
     # --- producten --------------------------------------------------------------------------
 
@@ -223,6 +228,45 @@ def create_webui(config: Config, config_path: Path, agent: Agent, client_factory
             return _redirect("/producten" + (f"?edit={quote(sku)}" if sku else ""), err=str(exc))
         n = result["labels_scheduled"]
         return _redirect("/producten", msg=f"{name} opgeslagen" + (f", {n} label(s) worden bijgewerkt" if n else ""))
+
+    # --- prijslijst importeren (CSV/Excel) ---------------------------------------------------
+
+    @app.get("/producten/import", response_class=HTMLResponse, dependencies=[Depends(require_login)])
+    def import_form(request: Request):
+        store, err = store_or_error()
+        return render(request, "import.html", store=store, result=None, err=err, fields=IMPORT_FIELDS)
+
+    @app.post("/producten/import", response_class=HTMLResponse, dependencies=[Depends(require_login)])
+    async def import_run(request: Request, file: UploadFile | None = File(None)):
+        import base64
+
+        form = await request.form()
+        if file is not None and file.filename:
+            data, filename = await file.read(), file.filename
+        else:
+            try:
+                data = base64.b64decode(str(form.get("content_b64", "")), validate=True)
+            except ValueError:
+                data = b""
+            filename = str(form.get("filename", ""))
+        if not data:
+            return _redirect("/producten/import", err="Kies eerst een bestand")
+        if len(data) > 5 * 1024 * 1024:
+            return _redirect("/producten/import", err="Bestand is te groot (max 5 MB)")
+        mapping = {f: str(form.get(f"map_{f}", "")) for f in IMPORT_FIELDS} if form.get("mapped") else None
+        default_unit = str(form.get("default_unit") or "st")
+        try:
+            result = cloud().import_prices(filename, data, mapping, dry_run=form.get("action") != "import",
+                                           default_unit=default_unit, source="upload")
+        except CloudError as exc:
+            store, _ = store_or_error()
+            return render(request, "import.html", store=store, result=None, err=str(exc), fields=IMPORT_FIELDS)
+        if result["imported"]:
+            return _redirect("/producten", msg=f"{result['imported']} producten geïmporteerd; "
+                                               f"{result['labels_scheduled']} labels krijgen de nieuwe prijs")
+        store, _ = store_or_error()
+        return render(request, "import.html", store=store, result=result, fields=result["fields"], filename=filename,
+                      content_b64=base64.b64encode(data).decode(), default_unit=default_unit)
 
     # --- labels -----------------------------------------------------------------------------
 
@@ -333,7 +377,8 @@ def create_webui(config: Config, config_path: Path, agent: Agent, client_factory
         interfaces, _ = network_status()
         ips = [i.address.split("/")[0] for i in interfaces if i.connected and i.address] or _ip_addresses()
         return render(request, "settings.html", store=store, cloud_err=err, config=config,
-                      hostname=socket.gethostname(), ips=ips, uptime_s=agent.uptime_s)
+                      hostname=socket.gethostname(), ips=ips, uptime_s=agent.uptime_s,
+                      last_import=importer.last if importer else None)
 
     @app.post("/instellingen/prijsbron", dependencies=[Depends(require_login)])
     def set_price_source(price_source: str = Form(...)):
@@ -357,6 +402,17 @@ def create_webui(config: Config, config_path: Path, agent: Agent, client_factory
         config.save(config_path)
         agent.set_client(client_factory(config) if config.token else None)
         return _redirect("/instellingen", msg="Cloudverbinding opgeslagen")
+
+    @app.post("/instellingen/importmap", dependencies=[Depends(require_login)])
+    def set_import_folder(enabled: str = Form("")):
+        config.import_enabled = enabled == "on"
+        config.save(config_path)
+        if config.import_enabled and importer is not None:
+            try:
+                importer.ensure_dirs()
+            except OSError as exc:
+                return _redirect("/instellingen", err=f"Importmap kan niet aangemaakt worden: {exc}")
+        return _redirect("/instellingen", msg="Importmap " + ("aan" if config.import_enabled else "uit"))
 
     @app.post("/instellingen/wachtwoord", dependencies=[Depends(require_login)])
     def set_password(current: str = Form(...), new: str = Form(...), repeat: str = Form(...)):

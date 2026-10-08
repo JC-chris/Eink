@@ -11,7 +11,7 @@ from datetime import date, datetime
 from pathlib import Path
 from urllib.parse import quote, urlsplit
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
@@ -22,7 +22,8 @@ from ..db import get_session
 from ..displays import DISPLAY_TYPES
 from ..models import Alert, AuditEntry, BaseStation, Customer, Label, Operator, Shipment, ShipmentItem, Store, utcnow
 from ..monitoring import evaluate_alerts, store_overview
-from ..schemas import CustomerCreate
+from ..pricefile import FIELD_LABELS
+from ..schemas import CustomerCreate, PriceImportIn
 from ..security import hash_password, sign, verify_password
 from ..subscriptions import STATUS_NAMES
 
@@ -556,6 +557,46 @@ def stock_add_basestation(request: Request, bs_id: str = Form(...), op: Operator
     except HTTPException as exc:
         return redirect("/beheer/voorraad", err=str(exc.detail))
     return stock(request, "", op, session, secret=(f"Token voor basisstation {bs.id} (voor de fabrieksconfig)", bs.token))
+
+
+# --- prijslijst importeren --------------------------------------------------------------------
+
+
+@router.get("/winkels/{store_id}/import", response_class=HTMLResponse)
+def import_form(store_id: str, request: Request, op: Operator = Depends(current_operator),
+                session: Session = Depends(get_session)):
+    return render(request, "import.html", op, store=_get_store(session, store_id), result=None, fields=FIELD_LABELS)
+
+
+@router.post("/winkels/{store_id}/import", response_class=HTMLResponse)
+async def import_run(store_id: str, request: Request, file: UploadFile | None = File(None),
+                     op: Operator = Depends(current_operator), session: Session = Depends(get_session)):
+    """Stap 1: bestand uploaden → voorbeeld. Stap 2: kolommen aanpassen / importeren (bestand gaat mee)."""
+    import base64
+
+    store = _get_store(session, store_id)
+    form = await request.form()
+    if file is not None and file.filename:
+        content_b64, filename = base64.b64encode(await file.read()).decode(), file.filename
+    else:
+        content_b64, filename = str(form.get("content_b64", "")), str(form.get("filename", ""))
+    if not content_b64:
+        return redirect(f"/beheer/winkels/{store_id}/import", err="Kies eerst een bestand")
+    mapping = {f: str(form.get(f"map_{f}", "")) for f in FIELD_LABELS} if form.get("mapped") else None
+    body = PriceImportIn(filename=filename, content_b64=content_b64, mapping=mapping,
+                         dry_run=form.get("action") != "import", default_unit=str(form.get("default_unit") or "st"))
+    try:
+        subscriptions.require_service(session, store)
+        result = catalog.import_price_file(session, store, body, actor(op))
+        session.commit()
+    except HTTPException as exc:
+        session.rollback()
+        return render(request, "import.html", op, store=store, result=None, fields=FIELD_LABELS, err=str(exc.detail))
+    if result.imported:
+        return redirect(f"/beheer/winkels/{store_id}",
+                        msg=f"{result.imported} producten geïmporteerd uit {filename}; {result.labels_scheduled} labels worden bijgewerkt")
+    return render(request, "import.html", op, store=store, result=result, fields=FIELD_LABELS, filename=filename,
+                  content_b64=content_b64, default_unit=body.default_unit)
 
 
 # --- overzichten ------------------------------------------------------------------------------

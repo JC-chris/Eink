@@ -63,5 +63,13 @@ class Cloud:
     def refresh_label(self, label_id: str) -> dict:
         return self._call("POST", f"/v1/basestation/store/labels/{label_id}/refresh").json()
 
+    def import_prices(self, filename: str, data: bytes, mapping: dict[str, str] | None, dry_run: bool,
+                      default_unit: str = "st", source: str = "upload") -> dict:
+        import base64
+
+        body = {"filename": filename, "content_b64": base64.b64encode(data).decode(), "mapping": mapping,
+                "dry_run": dry_run, "default_unit": default_unit}
+        return self._call("POST", "/v1/basestation/store/products:import", params={"source": source}, json=body).json()
+
     def preview(self, label_id: str) -> bytes:
         return self._call("GET", f"/v1/basestation/store/labels/{label_id}/preview.png").content
