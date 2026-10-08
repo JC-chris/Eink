@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Standaard assortiment{% endblock %}
+{% block content %}
+<h1>Standaard assortiment {% include "_price_source.html" %}</h1>
+<p class="muted"><a href="/producten">← terug naar producten</a> · Kies je branche, vink aan wat je verkoopt en vul alleen de prijs in.
+  Naam, eenheid en omschrijving staan al goed en kun je later bij Producten aanpassen.</p>
+{% if store %}
+<div class="card">
+  <form method="get" class="inline">
+    {% for b in branches %}
+    <a href="/producten/assortiment?branche={{ b.id }}"><button type="button" class="{{ '' if b.id == branche else 'secondary' }}">{{ b.name }} <span class="muted">({{ b.count }})</span></button></a>
+    {% endfor %}
+  </form>
+</div>
+
+{% if assortment %}
+<form method="post" action="/producten/assortiment">
+  <input type="hidden" name="branche" value="{{ assortment.id }}">
+  <div class="card scroll">
+    <h2>{{ assortment.name }}</h2>
+    <table>
+      <tr><th><input type="checkbox" style="width:auto" aria-label="alles" onclick="document.querySelectorAll('input[name=pick]').forEach(c => c.checked = this.checked)"></th>
+        <th>Product</th><th>Prijs (€)</th><th>Eenheid</th><th>Artikelnummer</th><th></th></tr>
+      {% for item in assortment['items'] %}
+      {% set have = existing.get(item.name.lower()) %}
+      {% set i = loop.index0 %}
+      <tr>
+        <td><input type="checkbox" name="pick" value="{{ i }}" style="width:auto" {{ 'checked' if values.get('price_' ~ i) and (i|string) in values.get('pick', '') }}></td>
+        <td><strong>{{ item.name }}</strong>{% if item.description %}<br><span class="muted">{{ item.description }}</span>{% endif %}</td>
+        <td><input name="price_{{ i }}" inputmode="decimal" placeholder="0,00" value="{{ values.get('price_' ~ i, '') }}" style="width:100px"
+                   oninput="if (this.value) this.closest('tr').querySelector('input[name=pick]').checked = true"></td>
+        <td><select name="unit_{{ i }}" style="width:auto">{% for k, v in units.items() %}<option value="{{ k }}" {{ 'selected' if (values.get('unit_' ~ i) or item.unit) == k }}>{{ v }}</option>{% endfor %}</select></td>
+        <td><input name="sku_{{ i }}" value="{{ values.get('sku_' ~ i) or (have.sku if have else item.sku) }}" style="width:110px"></td>
+        <td>{% if have %}<span class="badge">al aanwezig · {{ have.price_cents | euro }}</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  <div class="card">
+    {% if store.label_template != assortment.template %}
+    <label class="checkbox" style="margin-bottom:12px"><input type="checkbox" name="set_template" value="1" checked>
+      <span>Ook het winkelontwerp op <strong>{{ assortment.template }}</strong> zetten (aanbevolen voor {{ assortment.name | lower }})</span></label>
+    {% endif %}
+    <button>Aangevinkte producten toevoegen</button>
+    <p class="muted" style="margin-bottom:0">Producten die al aanwezig zijn, worden bijgewerkt met de nieuwe prijs.
+      {% if assortment.id == 'vis' %} Vul bij Producten nog het vangstgebied (herkomst) en het vistuig aan: dat is verplicht bij verse vis.{% endif %}</p>
+  </div>
+</form>
+{% endif %}
+{% endif %}
+{% endblock %}

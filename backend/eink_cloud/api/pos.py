@@ -21,6 +21,14 @@ def get_store(store: Store = Depends(require_store)):
     return store
 
 
+@router.get("/assortments")
+def assortments(store: Store = Depends(require_store)):
+    """Standaard assortimenten per branche, als startpunt voor winkels zonder eigen artikelbestand."""
+    from ..assortments import ASSORTMENTS
+
+    return [a.as_dict() for a in ASSORTMENTS.values()]
+
+
 @router.get("/templates", response_model=list[TemplateOut])
 def templates(store: Store = Depends(require_store)):
     """Beschikbare labelontwerpen. Kies per product met het veld `template`, of laat leeg voor het winkelontwerp."""

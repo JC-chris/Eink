@@ -79,6 +79,35 @@ lettertypes Inter en Caladea. Beide vallen onder de SIL Open Font License, zijn 
 - Nieuw ontwerp toevoegen: één functie in `backend/eink_cloud/label_templates.py`. De tests
   controleren automatisch dat het op elk displaytype werkt.
 
+## Standaard assortiment (zonder koppeling)
+
+Een winkel zonder kassakoppeling en zonder eigen artikellijst begint met een **standaard
+assortiment** van zijn branche:
+
+| Branche | Aantal | Aanbevolen ontwerp |
+|---|---|---|
+| Slagerij | 38 | ambachtelijk |
+| Viswinkel | 22 (met Latijnse naam) | vis |
+| Bakkerij | 29 | bakker |
+| Kaas en delicatessen | 21 | delicatesse |
+| Groente en fruit | 34 | markt |
+
+- In de webinterface van het basisstation: *Producten → kies uit het standaard assortiment*. Kies
+  de branche, vink producten aan (dat gebeurt vanzelf als je een prijs invult) en vul de prijzen in.
+  Naam, eenheid, omschrijving en een voorgesteld artikelnummer (`SL001`, `VI001`, …) staan al goed.
+  Optioneel wordt het winkelontwerp meteen op het aanbevolen ontwerp gezet. Producten die al
+  bestaan, worden gemarkeerd en bijgewerkt.
+- In het productformulier geven **suggesties tijdens het typen** alle ruim 140 namen. Wie een
+  naam kiest, krijgt de eenheid, omschrijving en (bij vis) het vis-ontwerp vanzelf ingevuld.
+- Bij vis staat de wetenschappelijke naam al in de omschrijving. Vangstgebied (herkomst) en vistuig
+  moet de winkel zelf aanvullen, want die verschillen per partij.
+- **Allergenen staan er bewust niet in**: die hangen af van het recept van de winkel.
+- API: `GET /v1/basestation/assortments`, `GET /v1/basestation/assortments/{branche}`,
+  `GET /v1/basestation/product-suggestions`, `POST /v1/basestation/store/products:batch`; voor
+  dealers `GET /v1/stores/{winkel}/assortments`.
+- Assortimenten aanpassen of uitbreiden: `backend/eink_cloud/assortments.py`. De tests controleren
+  dat elk product geldig is en dat namen en artikelnummers uniek zijn.
+
 ## Prijslijst importeren (CSV / Excel)
 
 Voor winkels zonder API-koppeling. Denk aan de export uit weegschaal- of kassasoftware, of een
@@ -135,7 +164,7 @@ GET  /v1/stores/slagerij-jansen/labels/C0:FF:EE:00:00:01/preview.png → exact b
 | Moderne kassa (Lightspeed, Shopify POS, eigen kassa) | Direct de REST-API, of een kleine connector die hun webhook ("product gewijzigd") vertaalt naar `PUT /products/{sku}` |
 | Slager/bakker met **weegschaal-kassa** (Bizerba, Mettler Toledo, Dibal, Digi, Avery Berkel) | Weegschaalsoftware exporteert de PLU-lijst als CSV/Excel naar de **importmap** van het basisstation. Eerste keer de kolomindeling bevestigen, daarna automatisch. XML-formaten per merk volgen met voorbeeldbestanden |
 | Supermarkt met ERP/HQ-prijzen | Nachtelijke batch + losse updates bij acties |
-| Geen koppeling | **Webinterface op het basisstation** (prijsbron *webinterface*): winkel beheert zelf producten en prijzen, met de hand of met een Excel/CSV-upload |
+| Geen koppeling | **Webinterface op het basisstation** (prijsbron *webinterface*): beginnen met het **standaard assortiment** van de branche en alleen prijzen invullen; verder met de hand of met een Excel/CSV-upload |
 
 ## Prijsaanduiding (wettelijk)
 

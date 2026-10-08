@@ -63,6 +63,18 @@ class Cloud:
     def upsert_product(self, sku: str, body: dict) -> dict:
         return self._call("PUT", f"/v1/basestation/store/products/{sku}", json=body).json()
 
+    def upsert_products(self, items: list[dict]) -> list[dict]:
+        return self._call("POST", "/v1/basestation/store/products:batch", json=items).json()
+
+    def assortments(self) -> list[dict]:
+        return self._call("GET", "/v1/basestation/assortments").json()
+
+    def assortment(self, assortment_id: str) -> dict:
+        return self._call("GET", f"/v1/basestation/assortments/{assortment_id}").json()
+
+    def product_suggestions(self) -> list[dict]:
+        return self._call("GET", "/v1/basestation/product-suggestions").json()
+
     def labels(self) -> list[dict]:
         return self._call("GET", "/v1/basestation/store/labels").json()
 

@@ -32,7 +32,7 @@ def test_webui_upload(env):
     config, factory, pos, tmp_path = env
     ui = TestClient(create_webui(config, tmp_path / "c.json", Agent(factory(config), SimulatedRadio()), factory))
     ui.post("/login", data={"password": "wachtwoord1"})
-    assert "Excel/CSV-prijslijst importeren" in ui.get("/producten").text
+    assert "importeer een Excel/CSV-prijslijst" in ui.get("/producten").text
     r = ui.post("/producten/import", files={"file": ("prijzen.csv", CSV.encode())})
     assert "2</strong> goede regels" in r.text and "Runderbiefstuk" in r.text
     r = ui.post("/producten/import", data={"content_b64": base64.b64encode(CSV.encode()).decode(), "filename": "prijzen.csv",

@@ -20,6 +20,7 @@ from ..jobs import claim_jobs, record_result
 from ..models import BaseStation, Customer, Label, PriceSource, Store, UpdateJob, utcnow
 from ..schemas import (
     Heartbeat, JobOut, JobResult, LabelCreate, LabelLink, LabelOut, LabelTelemetry, PriceImportIn, PriceImportOut,
+    ProductBatchItem,
     ProductIn, ProductOut, ProductUpdateResult, StoreInfo, StoreSettings, TemplateOut,
 )
 
@@ -137,6 +138,41 @@ def upsert_product(sku: str, body: ProductIn, store: Store = Depends(station_sto
     result = catalog.upsert_product(session, store, sku, body)
     session.commit()
     return result
+
+
+@router.post("/store/products:batch", response_model=list[ProductUpdateResult])
+def upsert_products(body: list[ProductBatchItem], store: Store = Depends(station_store), session: Session = Depends(get_session)):
+    """Meerdere producten tegelijk, bv. vanuit het standaard assortiment."""
+    require_service(session, store)
+    catalog.require_price_source(store, PriceSource.MANUAL)
+    results = [catalog.upsert_product(session, store, item.sku, item) for item in body]
+    session.commit()
+    return results
+
+
+@router.get("/assortments")
+def assortments():
+    """Standaard assortimenten per branche (slagerij, vis, bakkerij, kaas, groente)."""
+    from ..assortments import ASSORTMENTS
+
+    return [{"id": a.id, "name": a.name, "template": a.template, "count": len(a.items)} for a in ASSORTMENTS.values()]
+
+
+@router.get("/assortments/{assortment_id}")
+def assortment(assortment_id: str):
+    from ..assortments import ASSORTMENTS
+
+    if assortment_id not in ASSORTMENTS:
+        raise HTTPException(404, "onbekend assortiment")
+    return ASSORTMENTS[assortment_id].as_dict()
+
+
+@router.get("/product-suggestions")
+def product_suggestions():
+    """Productnamen met eenheid/omschrijving, voor suggesties tijdens het typen."""
+    from ..assortments import suggestions
+
+    return suggestions()
 
 
 @router.post("/store/products:import", response_model=PriceImportOut)

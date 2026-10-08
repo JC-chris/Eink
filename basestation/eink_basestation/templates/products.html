@@ -7,13 +7,15 @@
   {% if manual %}
   <div class="card">
     <h2>{{ 'Product bewerken' if editing else 'Product toevoegen' }}
-      {% if not editing %}<a href="/producten/import" style="font-size:14px; font-weight:normal; margin-left:8px">of een Excel/CSV-prijslijst importeren</a>{% endif %}</h2>
+      {% if not editing %}<span style="font-size:14px; font-weight:normal; margin-left:8px">of <a href="/producten/assortiment">kies uit het standaard assortiment</a>
+        · <a href="/producten/import">importeer een Excel/CSV-prijslijst</a></span>{% endif %}</h2>
     <form method="post" action="/producten">
       <div class="row">
         <div><label for="sku">Artikelnummer / PLU</label>
           <input id="sku" name="sku" required maxlength="64" value="{{ editing.sku if editing }}" {{ 'readonly' if editing }}></div>
         <div style="grid-column: span 2"><label for="name">Naam</label>
-          <input id="name" name="name" required maxlength="200" value="{{ editing.name if editing }}"></div>
+          <input id="name" name="name" required maxlength="200" value="{{ editing.name if editing }}" list="suggesties" autocomplete="off"
+                 placeholder="begin te typen voor suggesties"></div>
       </div>
       <div class="row">
         <div><label for="price">Prijs (€)</label>
@@ -45,6 +47,22 @@
       <button>Opslaan</button>
       {% if editing %}<a href="/producten" style="margin-left:8px">Annuleren</a>{% endif %}
     </form>
+    <datalist id="suggesties">{% for s in suggestions %}<option value="{{ s.name }}"></option>{% endfor %}</datalist>
+    <script>
+      (() => {
+        const sugg = {{ suggestions | tojson }};
+        const byName = Object.fromEntries(sugg.map(s => [s.name.toLowerCase(), s]));
+        const $ = id => document.getElementById(id);
+        $('name').addEventListener('change', () => {
+          const s = byName[$('name').value.trim().toLowerCase()];
+          if (!s) return;
+          $('unit').value = s.unit;  // eenheid hoort bij het product
+          if (!$('description').value && s.description) $('description').value = s.description;
+          if (!$('template').value && s.template) $('template').value = s.template;
+          if (!$('sku').value && !$('sku').readOnly) $('sku').focus(); else $('price').focus();
+        });
+      })();
+    </script>
   </div>
   {% elif license and not license.prices_editable %}
   <div class="flash err">Prijzen beheren is niet beschikbaar zolang het systeem niet actief is.</div>

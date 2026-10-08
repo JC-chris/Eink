@@ -196,14 +196,75 @@ def create_webui(config: Config, config_path: Path, agent: Agent, client_factory
             except CloudError as exc:
                 err = str(exc)
         editing = next((p for p in items if p["sku"] == edit), None)
-        templates_list = []
+        templates_list, suggestions = [], []
         if store:
             try:
-                templates_list = cloud().templates()
+                c = cloud()
+                templates_list, suggestions = c.templates(), c.product_suggestions()
             except CloudError:
                 pass
         return render(request, "products.html", store=store, products=items, editing=editing, units=UNITS, err=err,
-                      templates=templates_list)
+                      templates=templates_list, suggestions=suggestions)
+
+    # --- standaard assortiment -----------------------------------------------------------------
+
+    def assortment_page(request: Request, branche: str, values: dict | None = None, err: str | None = None):
+        store, store_err = store_or_error()
+        branches, assortment, existing = [], None, {}
+        if store:
+            try:
+                c = cloud()
+                branches = c.assortments()
+                if branche:
+                    assortment = c.assortment(branche)
+                existing = {p["name"].lower(): p for p in c.products()}
+            except CloudError as exc:
+                store_err = str(exc)
+        return render(request, "assortment.html", store=store, branches=branches, branche=branche, assortment=assortment,
+                      existing=existing, values=values or {}, units=UNITS, err=err or store_err)
+
+    @app.get("/producten/assortiment", response_class=HTMLResponse, dependencies=[Depends(require_login)])
+    def assortment_form(request: Request, branche: str = ""):
+        return assortment_page(request, branche)
+
+    @app.post("/producten/assortiment", response_class=HTMLResponse, dependencies=[Depends(require_login)])
+    async def assortment_save(request: Request):
+        form = await request.form()
+        branche = str(form.get("branche", ""))
+        try:
+            assortment = cloud().assortment(branche)
+        except CloudError as exc:
+            return _redirect("/producten/assortiment", err=str(exc))
+        values = {k: str(v) for k, v in form.items()}
+        picked = set(form.getlist("pick"))
+        items, errors = [], []
+        for i, item in enumerate(assortment["items"]):
+            if str(i) not in picked:
+                continue
+            try:
+                cents = parse_euro(values.get(f"price_{i}", ""))
+                if cents is None:
+                    raise ValueError("prijs ontbreekt")
+            except ValueError as exc:
+                errors.append(f"{item['name']}: {exc}")
+                continue
+            sku = values.get(f"sku_{i}", "").strip() or item["sku"]
+            unit = values.get(f"unit_{i}") or item["unit"]
+            items.append({"sku": sku, "name": item["name"], "price_cents": cents, "unit": unit,
+                          "description": item["description"], "template": item["template"]})
+        if errors or not items:
+            return assortment_page(request, branche, values,
+                                   err="; ".join(errors) if errors else "Vink producten aan en vul een prijs in")
+        try:
+            c = cloud()
+            results = c.upsert_products(items)
+            if form.get("set_template"):
+                c.set_label_template(assortment["template"])
+        except CloudError as exc:
+            return assortment_page(request, branche, values, err=str(exc))
+        n = sum(r["labels_scheduled"] for r in results)
+        return _redirect("/producten", msg=f"{len(items)} producten toegevoegd uit het assortiment {assortment['name']}"
+                                           + (f"; {n} labels worden bijgewerkt" if n else ""))
 
     @app.post("/producten", dependencies=[Depends(require_login)])
     def save_product(

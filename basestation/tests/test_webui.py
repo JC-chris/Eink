@@ -199,3 +199,29 @@ def test_design_page_and_product_design_fields(env):
     assert "Appeltaart opgeslagen" in r.text and "(van € 14,95)" in r.text
     p = pos.get("/v1/stores/bakkerij/products/5").json()
     assert (p["was_price_cents"], p["description"], p["template"]) == (1495, "Met kaneel en rozijnen", "actie")
+
+
+def test_standard_assortment(env):
+    ui, _agent, pos, *_ = env
+    login(ui)
+    ui.post("/instellingen/prijsbron", data={"price_source": "manual"})
+    page = ui.get("/producten").text
+    assert "kies uit het standaard assortiment" in page and 'list="suggesties"' in page and "Kabeljauwfilet" in page
+
+    page = ui.get("/producten/assortiment").text
+    assert "Slagerij" in page and "Bakkerij" in page
+    page = ui.get("/producten/assortiment?branche=bakkerij").text
+    assert "Volkorenbrood" in page and "BA001" in page and "winkelontwerp op <strong>bakker</strong>" in page
+
+    # Prijs ontbreekt bij een aangevinkt product → foutmelding, ingevulde waarden blijven staan.
+    r = ui.post("/producten/assortiment", data={"branche": "bakkerij", "pick": ["0", "2"], "price_0": "3,45", "price_2": ""})
+    assert "Witbrood: prijs ontbreekt" in r.text and 'value="3,45"' in r.text
+
+    r = ui.post("/producten/assortiment", data={"branche": "bakkerij", "pick": ["0", "2"], "price_0": "3,45",
+                                                "price_2": "2,10", "sku_2": "77", "set_template": "1"})
+    assert "2 producten toegevoegd uit het assortiment Bakkerij" in r.text
+    assert pos.get("/v1/stores/bakkerij/products/BA001").json()["price_cents"] == 345
+    assert pos.get("/v1/stores/bakkerij/products/77").json()["name"] == "Witbrood"
+    assert pos.get("/v1/stores/bakkerij").json()["label_template"] == "bakker"
+    # Daarna gemarkeerd als al aanwezig.
+    assert "al aanwezig · € 3,45" in ui.get("/producten/assortiment?branche=bakkerij").text
