@@ -225,3 +225,24 @@ def test_standard_assortment(env):
     assert pos.get("/v1/stores/bakkerij").json()["label_template"] == "bakker"
     # Daarna gemarkeerd als al aanwezig.
     assert "al aanwezig · € 3,45" in ui.get("/producten/assortiment?branche=bakkerij").text
+
+
+def test_fish_species_choice_and_sauces(env):
+    ui, _agent, pos, *_ = env
+    login(ui)
+    ui.post("/instellingen/prijsbron", data={"price_source": "manual"})
+    page = ui.get("/producten/assortiment?branche=vis").text
+    assert "— kies de vissoort —" in page and "Pollak (Pollachius pollachius)" in page and "Knoflook, Ravigotte" in page
+    # Kibbeling (index 0) zonder vissoort → fout.
+    r = ui.post("/producten/assortiment", data={"branche": "vis", "pick": ["0"], "price_0": "6,50"})
+    assert "Kibbeling: kies de vissoort" in r.text
+    r = ui.post("/producten/assortiment", data={"branche": "vis", "pick": ["0"], "price_0": "6,50",
+                                                "variant_0": "Pollak (Pollachius pollachius)", "opt_0": "Knoflook, Cocktail"})
+    assert "1 producten toegevoegd" in r.text
+    p = pos.get("/v1/stores/bakkerij/products/VI001").json()
+    assert p["description"] == "Pollak (Pollachius pollachius)" and p["options"] == ["Knoflook", "Cocktail"]
+
+    r = ui.post("/producten", data={"sku": "9", "name": "Visburger", "price": "4,50", "options": "chili, knoflook",
+                                    "options_label": "Saus"})
+    assert "Visburger opgeslagen" in r.text
+    assert pos.get("/v1/stores/bakkerij/products/9").json()["options_label"] == "Saus"

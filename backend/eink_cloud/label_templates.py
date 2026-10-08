@@ -16,7 +16,7 @@ from PIL import Image, ImageDraw
 
 from . import label_designs as designs
 from .displays import BLACK, BLUE, RED, WHITE, YELLOW, DisplayType
-from .render import LabelContent, _fit, _font, format_euro, render_standard
+from .render import LabelContent, _fit, _font, format_euro, options_text, render_standard
 
 
 @dataclass(frozen=True)
@@ -183,8 +183,9 @@ def render_fish(c: LabelContent, display: DisplayType) -> Image.Image:
     d.text((x, y), c.name, font=f_name, fill=accent if accent != BLACK else BLACK)
     y += f_name.size + pad // 2
     small = int(h * 0.085)
-    for line in (c.description, f"Vangstgebied: {c.origin}" if c.origin else None):
-        if line:
+    price_top = h - pad - int(h * 0.34)
+    for line in (c.description, f"Vangstgebied: {c.origin}" if c.origin else None, options_text(c)):
+        if line and y + small <= price_top:
             font, line = _line(d, line, w - x - pad, small)
             d.text((x, y), line, font=font, fill=BLACK)
             y += font.size + 2
@@ -251,12 +252,18 @@ def render_info(c: LabelContent, display: DisplayType) -> Image.Image:
     box_h = int(h * 0.34)
     text_size = max(9, int(h * 0.06))
     if c.description:
-        max_lines = max(1, (h - box_h - y - pad) // (text_size + 3) - (1 if c.origin else 0))
+        reserved = (1 if c.origin else 0) + (1 if c.options else 0)
+        max_lines = max(1, (h - box_h - y - pad) // (text_size + 3) - reserved)
         for line in _wrap(d, c.description, text_size, w - 2 * pad, max_lines):
             d.text((pad, y), line, font=_font(text_size), fill=BLACK)
             y += text_size + 3
     if c.origin:
         font, line = _line(d, f"Herkomst: {c.origin}", w - 2 * pad, text_size, bold=True)
+        d.text((pad, y + 2), line, font=font, fill=BLACK)
+        y += text_size + 3
+    opts = options_text(c)
+    if opts and y + text_size < h - box_h:
+        font, line = _line(d, opts, w - 2 * pad, text_size, bold=True)
         d.text((pad, y + 2), line, font=font, fill=BLACK)
     # prijsvlak
     box_w = int(w * 0.55)

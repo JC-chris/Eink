@@ -32,7 +32,10 @@ def upsert_product(session: Session, store: Store, sku: str, body: ProductIn) ->
         product = Product(store_id=store.id, sku=sku)
         session.add(product)
     for field in ProductIn.model_fields:
-        setattr(product, field, getattr(body, field))
+        value = getattr(body, field)
+        if field == "options":
+            value = "|".join(value) if value else None
+        setattr(product, field, value)
     product.updated_at = utcnow()
     session.flush()
     return ProductUpdateResult(sku=sku, labels_scheduled=schedule_product_update(session, product))

@@ -68,6 +68,20 @@ class ProductIn(BaseModel):
     was_price_cents: int | None = Field(None, ge=0, description="van-prijs, doorgestreept getoond bij een actie")
     description: str | None = Field(None, max_length=300, description="omschrijving, ingrediënten/allergenen of vangstinformatie")
     template: str | None = Field(None, description="labelontwerp voor dit product; leeg = ontwerp van de winkel")
+    options: list[str] | None = Field(None, max_length=8, description="keuzes op het label, bv. sauzen")
+    options_label: str | None = Field(None, max_length=40, description='kop voor de keuzes; leeg = "Saus naar keuze"')
+
+    @field_validator("options", mode="before")
+    @classmethod
+    def clean_options(cls, v):
+        if v in (None, "", []):
+            return None
+        if isinstance(v, str):
+            v = [p for p in v.replace(";", ",").replace("|", ",").split(",")]
+        items = [str(x).strip() for x in v if str(x).strip()]
+        if any(len(x) > 30 for x in items):
+            raise ValueError("een keuze mag maximaal 30 tekens zijn")
+        return items or None
 
     @field_validator("template")
     @classmethod
@@ -89,6 +103,13 @@ class ProductOut(ProductIn):
     model_config = ConfigDict(from_attributes=True)
     sku: str
     updated_at: datetime
+
+    @field_validator("options", mode="before")
+    @classmethod
+    def clean_options(cls, v):  # in de database als "a|b|c"
+        if isinstance(v, str):
+            v = v.split("|")
+        return ProductIn.clean_options(v)
 
 
 class ProductUpdateResult(BaseModel):

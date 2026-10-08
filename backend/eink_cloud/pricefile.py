@@ -38,11 +38,12 @@ FIELDS = {
     "description": ("beschrijving", "toelichting", "ingredienten", "ingrediënten", "allergenen", "info", "details",
                     "latijnsenaam", "wetenschappelijkenaam"),
     "template": ("ontwerp", "sjabloon", "template", "layout"),
+    "options": ("sauzen", "saus", "keuze", "keuzes", "opties", "options"),
 }
 FIELD_LABELS = {
     "sku": "Artikelnummer / PLU", "name": "Naam", "price": "Prijs", "unit": "Eenheid",
     "unit_price": "Prijs per kg (voorverpakt)", "origin": "Herkomst", "promo_text": "Actietekst",
-    "was_price": "Van-prijs", "description": "Omschrijving", "template": "Ontwerp",
+    "was_price": "Van-prijs", "description": "Omschrijving", "template": "Ontwerp", "options": "Keuzes (sauzen)",
 }
 REQUIRED = ("sku", "name", "price")
 UNIT_ALIASES = {
@@ -214,7 +215,8 @@ def build_items(table: Table, mapping: dict[str, str], default_unit: str = "st")
             item = ProductBatchItem(sku=sku, name=get("name"), price_cents=parse_price(get("price")), unit=unit,
                                     unit_price_cents=unit_price, origin=get("origin") or None,
                                     promo_text=get("promo_text") or None, was_price_cents=was_price,
-                                    description=get("description") or None, template=get("template").lower() or None)
+                                    description=get("description") or None, template=get("template").lower() or None,
+                                    options=get("options") or None)
             if not item.name:
                 raise ValueError("naam ontbreekt")
         except ValidationError as exc:

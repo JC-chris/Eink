@@ -14,7 +14,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 from .displays import BLACK, BLUE, GREEN, RED, WHITE, YELLOW, DisplayType
-from .render import LabelContent, format_euro
+from .render import LabelContent, format_euro, options_text
 
 FONT_DIR = Path(__file__).parent / "fonts"
 FONTS = {
@@ -286,10 +286,11 @@ def chalkboard(c: LabelContent, display: DisplayType) -> Image.Image:
     d.text((w / 2, y + f.size), name, font=f, fill=WHITE, anchor="ms")
     y += f.size * 1.15
     sub = " · ".join(x for x in (c.origin, c.description) if x)
-    if sub:
-        fs, sub = fit_line(d, sub, w - 2 * inner, h * 0.095, "serif_italic")
-        d.text((w / 2, y + fs.size), sub, font=fs, fill=WHITE, anchor="ms")
-        y += fs.size * 1.2
+    for extra, name, color in ((sub, "serif_italic", WHITE), (options_text(c), "sans_semi", accent)):
+        if extra:
+            fs, extra = fit_line(d, extra, w - 2 * inner, h * 0.09, name)
+            d.text((w / 2, y + fs.size), extra, font=fs, fill=color, anchor="ms")
+            y += fs.size * 1.2
     divider(d, w * 0.3, w * 0.7, y + h * 0.04, WHITE, max(2, h // 60))
     base = h - inner - (h * 0.06 if c.unit_price_cents is not None else 0)
     room = base - (y + h * 0.08)
@@ -358,9 +359,11 @@ def burst(c: LabelContent, display: DisplayType) -> Image.Image:
     for line in lines:
         d.text((pad, y + fn.size), line, font=fn, fill=BLACK, anchor="ls")
         y += fn.size * 1.1
-    if c.description or c.origin:
-        fs, t = fit_line(d, c.description or c.origin, left_w, h * 0.085, "sans")
-        d.text((pad, y + fs.size * 1.1), t, font=fs, fill=BLACK, anchor="ls")
+    for extra in (c.description or c.origin, options_text(c)):
+        if extra and y + h * 0.1 < h - pad - h * 0.2:
+            fs, t = fit_line(d, extra, left_w, h * 0.085, "sans")
+            d.text((pad, y + fs.size * 1.1), t, font=fs, fill=BLACK, anchor="ls")
+            y += fs.size * 1.25
     was_price(d, c, pad, h - pad - (h * 0.1 if c.unit_price_cents is not None else 0), max(9, int(h * 0.09)))
     unit_price(d, c, pad, h - pad, left_w, max(8, h * 0.07))
     return img
@@ -480,10 +483,19 @@ def duo(c: LabelContent, display: DisplayType) -> Image.Image:
     for line in lines:
         d.text((pad, y + fn.size * 0.95), line, font=fn, fill=txt, anchor="ls")
         y += fn.size * 1.05
-    sub = c.origin or c.description
+    sub = " · ".join(x for x in (c.description, c.origin) if x)  # vissoort mag niet wegvallen
+    bottom = h - pad
     if sub:
         fs, sub = fit_line(d, sub, pw - 2 * pad, h * 0.08, "sans")
-        d.text((pad, h - pad), sub, font=fs, fill=txt, anchor="ls")
+        d.text((pad, bottom), sub, font=fs, fill=txt, anchor="ls")
+        bottom -= fs.size * 1.3
+    opts = options_text(c)
+    if opts:
+        fo, lines = fit_wrapped(d, opts, pw - 2 * pad, max(8, h * 0.065), "sans_semi", 3)
+        top_needed = bottom - fo.size * 1.15 * (len(lines) - 1)
+        if top_needed - fo.size > y:
+            for i, line in enumerate(lines):
+                d.text((pad, top_needed + i * fo.size * 1.15), line, font=fo, fill=txt, anchor="ls")
     rx0 = pw + pad
     base = h * 0.66
     price(d, c, 0, base, w - rx0 - pad, h * 0.42, color=pick(display, RED, BLACK) if c.promo_text else BLACK,
@@ -514,9 +526,12 @@ def market(c: LabelContent, display: DisplayType) -> Image.Image:
     d.text((pad, y + fn.size * 0.95), name, font=fn, fill=BLACK, anchor="ls")
     y += fn.size * 1.15
     sub = " · ".join(x for x in (c.origin, c.description) if x)
-    if sub:
-        fs, sub = fit_line(d, sub, w - 2 * pad, h * 0.08, "sans")
-        d.text((pad, y + fs.size), sub, font=fs, fill=BLACK, anchor="ls")
+    digits_top = h - pad - h * 0.38 * 0.76
+    for extra, name in ((sub, "sans"), (options_text(c), "sans_semi")):
+        if extra and y + h * 0.08 < digits_top:
+            fs, extra = fit_line(d, extra, w - 2 * pad, h * 0.08, name)
+            d.text((pad, y + fs.size), extra, font=fs, fill=BLACK, anchor="ls")
+            y += fs.size * 1.3
     base = h - pad
     price(d, c, w - pad, base, w * 0.62, h * 0.38, color=color if c.promo_text else BLACK)
     was_price(d, c, pad, base - (h * 0.09 if c.unit_price_cents is not None else 0), max(9, int(h * 0.075)))

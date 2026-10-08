@@ -17,6 +17,8 @@ CONTENTS = [
     LabelContent(LONG, 123456, "100g", unit_price_cents=99999, origin=LONG, promo_text=LONG, was_price_cents=999999,
                  description=LONG * 3),
     LabelContent("X", 0, "st", was_price_cents=100, promo_text="Actie"),
+    LabelContent("Kibbeling", 650, "st", description="Pollak (Pollachius pollachius)", origin="Noordzee",
+                 options=("Knoflook", "Ravigotte", "Remoulade", "Cocktail", "Tartaar"), promo_text="Actie"),
 ]
 
 

@@ -110,6 +110,8 @@ class Product(Base):
     was_price_cents: Mapped[int | None]  # "van"-prijs bij een actie
     description: Mapped[str | None] = mapped_column(String(300))
     template: Mapped[str | None] = mapped_column(String(32))  # None = ontwerp van de winkel
+    options: Mapped[str | None] = mapped_column(String(300))  # keuzes, gescheiden door "|"
+    options_label: Mapped[str | None] = mapped_column(String(40))
     updated_at: Mapped[datetime] = mapped_column(default=utcnow)
 
 

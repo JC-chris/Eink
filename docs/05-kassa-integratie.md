@@ -101,6 +101,14 @@ assortiment** van zijn branche:
   naam kiest, krijgt de eenheid, omschrijving en (bij vis) het vis-ontwerp vanzelf ingevuld.
 - Bij vis staat de wetenschappelijke naam al in de omschrijving. Vangstgebied (herkomst) en vistuig
   moet de winkel zelf aanvullen, want die verschillen per partij.
+- **Kibbeling en lekkerbekje** worden van verschillende vissoorten gemaakt (kabeljauw, pollak,
+  Alaska koolvis, koolvis, wijting, heek). Er staat daarom géén soort voorgevuld: de winkel moet de
+  soort kiezen die hij echt verkoopt. Pollak als kabeljauw aanprijzen is misleidend.
+- **Keuzes op het label**, bv. *Saus naar keuze: knoflook, ravigotte, cocktail*: veld `options`
+  (max. 8, elk max. 30 tekens) en `options_label` (standaard "Saus naar keuze"). Kibbeling,
+  lekkerbekje en visburger hebben voorgestelde sauzen. De ontwerpen standaard, vis, markt, info,
+  duo, knaller en krijtbord tonen de keuzes op een eigen regel, de andere achter de omschrijving.
+  In een prijslijst-import wordt een kolom *Sauzen*/*Keuze* herkend (gescheiden door komma's).
 - **Allergenen staan er bewust niet in**: die hangen af van het recept van de winkel.
 - API: `GET /v1/basestation/assortments`, `GET /v1/basestation/assortments/{branche}`,
   `GET /v1/basestation/product-suggestions`, `POST /v1/basestation/store/products:batch`; voor

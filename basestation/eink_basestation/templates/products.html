@@ -36,8 +36,15 @@
           <input id="was_price" name="was_price" inputmode="decimal" placeholder="optioneel" value="{{ editing.was_price_cents | euro_input if editing }}"></div>
       </div>
       <div class="row">
-        <div style="grid-column: span 2"><label for="description">Omschrijving <span class="muted">(ingrediënten/allergenen, of Latijnse naam en vangstmethode bij vis)</span></label>
-          <input id="description" name="description" maxlength="300" value="{{ editing.description or '' if editing }}"></div>
+        <div style="grid-column: span 2"><label for="description">Omschrijving <span class="muted">(ingrediënten/allergenen, of vissoort met Latijnse naam en vangstmethode)</span></label>
+          <input id="description" name="description" maxlength="300" list="varianten" autocomplete="off" value="{{ editing.description or '' if editing }}">
+          <datalist id="varianten"></datalist></div>
+      </div>
+      <div class="row">
+        <div style="grid-column: span 2"><label for="options">Keuzes op het label <span class="muted">(gescheiden door komma's, bv. knoflook, ravigotte, cocktail)</span></label>
+          <input id="options" name="options" maxlength="250" value="{{ editing.options | join(', ') if editing and editing.options else '' }}"></div>
+        <div><label for="options_label">Kop voor de keuzes</label>
+          <input id="options_label" name="options_label" maxlength="40" placeholder="Saus naar keuze" value="{{ editing.options_label or '' if editing }}"></div>
         <div><label for="template">Ontwerp</label>
           <select id="template" name="template">
             <option value="">Winkelontwerp ({{ store.label_template }})</option>
@@ -58,6 +65,10 @@
           if (!s) return;
           $('unit').value = s.unit;  // eenheid hoort bij het product
           if (!$('description').value && s.description) $('description').value = s.description;
+          // Vissoort kiezen: suggesties in het omschrijvingsveld, niets voorgevuld.
+          $('varianten').innerHTML = (s.variants || []).map(v => '<option value="' + v.replace(/"/g, '&quot;') + '">').join('');
+          if (s.variants && s.variants.length && !$('description').value) $('description').placeholder = 'kies de vissoort, bv. ' + s.variants[1];
+          if (!$('options').value && s.options && s.options.length) $('options').value = s.options.join(', ');
           if (!$('template').value && s.template) $('template').value = s.template;
           if (!$('sku').value && !$('sku').readOnly) $('sku').focus(); else $('price').focus();
         });

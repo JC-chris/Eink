@@ -250,8 +250,15 @@ def create_webui(config: Config, config_path: Path, agent: Agent, client_factory
                 continue
             sku = values.get(f"sku_{i}", "").strip() or item["sku"]
             unit = values.get(f"unit_{i}") or item["unit"]
+            description = item["description"]
+            if item["variants"]:
+                description = values.get(f"variant_{i}", "")
+                if description not in item["variants"]:
+                    errors.append(f"{item['name']}: kies de vissoort")
+                    continue
             items.append({"sku": sku, "name": item["name"], "price_cents": cents, "unit": unit,
-                          "description": item["description"], "template": item["template"]})
+                          "description": description, "template": item["template"],
+                          "options": values.get(f"opt_{i}", "") or None})
         if errors or not items:
             return assortment_page(request, branche, values,
                                    err="; ".join(errors) if errors else "Vink producten aan en vul een prijs in")
@@ -278,6 +285,8 @@ def create_webui(config: Config, config_path: Path, agent: Agent, client_factory
         was_price: str = Form(""),
         description: str = Form(""),
         template: str = Form(""),
+        options: str = Form(""),
+        options_label: str = Form(""),
     ):
         sku = sku.strip()
         state = license_state()
@@ -297,6 +306,8 @@ def create_webui(config: Config, config_path: Path, agent: Agent, client_factory
                 "was_price_cents": parse_euro(was_price),
                 "description": description.strip() or None,
                 "template": template or None,
+                "options": options or None,
+                "options_label": options_label.strip() or None,
             }
             result = cloud().upsert_product(sku, body)
         except (ValueError, CloudError) as exc:

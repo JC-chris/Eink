@@ -1,6 +1,6 @@
 """Rendert een product naar een label-bitmap in het palet van het display."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import lru_cache
 from pathlib import Path
 
@@ -22,6 +22,19 @@ class LabelContent:
     was_price_cents: int | None = None  # "van"-prijs bij een actie
     description: str | None = None  # bv. ingrediënten/allergenen, of Latijnse naam + vangstmethode bij vis
     template: str = "standaard"
+    options: tuple[str, ...] = ()  # keuzes, bv. sauzen bij kibbeling
+    options_label: str | None = None  # kop voor de keuzes, standaard "Saus naar keuze"
+
+
+DEFAULT_OPTIONS_LABEL = "Saus naar keuze"
+# Ontwerpen die de keuzes op een eigen regel tonen; bij de andere komen ze achter de omschrijving.
+OPTIONS_AWARE = {"standaard", "vis", "markt", "info", "duo", "knaller", "krijtbord"}
+
+
+def options_text(c: "LabelContent") -> str | None:
+    if not c.options:
+        return None
+    return f"{c.options_label or DEFAULT_OPTIONS_LABEL}: {', '.join(c.options)}"
 
 
 def format_euro(cents: int) -> str:
@@ -54,6 +67,9 @@ def render_image(content: LabelContent, display: DisplayType) -> Image.Image:
     from .label_templates import TEMPLATES
 
     template = TEMPLATES.get(content.template) or TEMPLATES["standaard"]
+    if content.options and template.id not in OPTIONS_AWARE:
+        extra = options_text(content)
+        content = replace(content, description=f"{content.description} · {extra}" if content.description else extra)
     return template.render(content, display)
 
 
@@ -83,6 +99,15 @@ def render_standard(content: LabelContent, display: DisplayType) -> Image.Image:
     if content.origin:
         f_small = _fit(d, content.origin, w - 2 * pad, int(h * 0.09))
         d.text((pad, y), content.origin, font=f_small, fill=BLACK)
+        y += f_small.size + 2
+    opts = options_text(content)
+    if opts and y + int(h * 0.08) < h - int(h * 0.38):  # alleen als het boven de prijs past
+        f_opt = _fit(d, opts, w - 2 * pad, int(h * 0.08))
+        if d.textlength(opts, font=f_opt) > w - 2 * pad:
+            while opts and d.textlength(opts + "…", font=f_opt) > w - 2 * pad:
+                opts = opts[:-1]
+            opts += "…"
+        d.text((pad, y), opts, font=f_opt, fill=BLACK)
 
     # Prijs groot rechtsonder; per kg-producten krijgen "/kg" erachter.
     price = format_euro(content.price_cents)

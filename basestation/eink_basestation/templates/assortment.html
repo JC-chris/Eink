@@ -26,7 +26,13 @@
       {% set i = loop.index0 %}
       <tr>
         <td><input type="checkbox" name="pick" value="{{ i }}" style="width:auto" {{ 'checked' if values.get('price_' ~ i) and (i|string) in values.get('pick', '') }}></td>
-        <td><strong>{{ item.name }}</strong>{% if item.description %}<br><span class="muted">{{ item.description }}</span>{% endif %}</td>
+        <td><strong>{{ item.name }}</strong>{% if item.description %}<br><span class="muted">{{ item.description }}</span>{% endif %}
+          {% if item.variants %}<br><select name="variant_{{ i }}" style="width:auto; margin-top:4px" aria-label="vissoort">
+            <option value="">— kies de vissoort —</option>
+            {% for v in item.variants %}<option value="{{ v }}" {{ 'selected' if values.get('variant_' ~ i) == v }}>{{ v }}</option>{% endfor %}
+          </select>{% endif %}
+          {% if item.options %}<br><label style="margin:4px 0 0">Saus naar keuze
+            <input name="opt_{{ i }}" value="{{ values.get('opt_' ~ i, item.options | join(', ')) }}" style="width:260px"></label>{% endif %}</td>
         <td><input name="price_{{ i }}" inputmode="decimal" placeholder="0,00" value="{{ values.get('price_' ~ i, '') }}" style="width:100px"
                    oninput="if (this.value) this.closest('tr').querySelector('input[name=pick]').checked = true"></td>
         <td><select name="unit_{{ i }}" style="width:auto">{% for k, v in units.items() %}<option value="{{ k }}" {{ 'selected' if (values.get('unit_' ~ i) or item.unit) == k }}>{{ v }}</option>{% endfor %}</select></td>

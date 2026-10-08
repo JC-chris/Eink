@@ -6,6 +6,9 @@ omschrijving (EU-verordening 1379/2013); vangstgebied/herkomst en vistuig vult d
 want dat verschilt per partij.
 
 Allergenen staan er bewust niet in: die hangen af van het recept van de winkel zelf.
+
+Kibbeling en lekkerbekje worden van verschillende vissoorten gemaakt. Daar staat bewust géén soort
+voorgevuld: de winkel kiest de soort die hij echt verkoopt (pollak als kabeljauw verkopen is misleidend).
 """
 
 from dataclasses import asdict, dataclass
@@ -18,6 +21,8 @@ class AssortmentItem:
     description: str | None = None
     template: str | None = None  # None = winkelontwerp
     unit_price_unit: str = "kg"
+    variants: tuple[str, ...] = ()  # keuze vissoort e.d.; verplicht kiezen als er varianten zijn
+    options: tuple[str, ...] = ()  # voorgestelde keuzes op het label, bv. sauzen
 
 
 @dataclass(frozen=True)
@@ -31,12 +36,26 @@ class Assortment:
     def as_dict(self) -> dict:
         return {
             "id": self.id, "name": self.name, "template": self.template,
-            "items": [dict(asdict(item), sku=f"{self.prefix}{i:03d}") for i, item in enumerate(self.items, start=1)],
+            "items": [dict(asdict(item), sku=f"{self.prefix}{i:03d}", variants=list(item.variants),
+                   options=list(item.options)) for i, item in enumerate(self.items, start=1)],
         }
 
 
 def _items(*rows) -> tuple[AssortmentItem, ...]:
-    return tuple(AssortmentItem(*row) if isinstance(row, tuple) else AssortmentItem(row) for row in rows)
+    return tuple(row if isinstance(row, AssortmentItem) else AssortmentItem(*row) if isinstance(row, tuple)
+                 else AssortmentItem(row) for row in rows)
+
+
+# Handelsbenaming + wetenschappelijke naam, voor gebakken witvis (kibbeling, lekkerbekje).
+WHITEFISH = (
+    "Kabeljauw (Gadus morhua)",
+    "Pollak (Pollachius pollachius)",
+    "Alaska koolvis (Gadus chalcogrammus)",
+    "Koolvis (Pollachius virens)",
+    "Wijting (Merlangius merlangus)",
+    "Heek (Merluccius merluccius)",
+)
+SAUCES = ("Knoflook", "Ravigotte", "Remoulade", "Cocktail", "Tartaar")
 
 
 ASSORTMENTS: dict[str, Assortment] = {a.id: a for a in (
@@ -54,8 +73,8 @@ ASSORTMENTS: dict[str, Assortment] = {a.id: a for a in (
         ("Gebraden gehakt", "100g"), ("Huisgemaakte rollade", "kg"),
     )),
     Assortment("vis", "Viswinkel", "VI", "vis", _items(
-        ("Kibbeling", "st", "Kabeljauw (Gadus morhua), gebakken"),
-        ("Lekkerbekje", "st", "Wijting (Merlangius merlangus), gebakken"),
+        AssortmentItem("Kibbeling", "st", variants=WHITEFISH, options=SAUCES),
+        AssortmentItem("Lekkerbekje", "st", variants=WHITEFISH, options=SAUCES),
         ("Hollandse Nieuwe", "st", "Haring (Clupea harengus)"),
         ("Zure haring", "st", "Haring (Clupea harengus)"),
         ("Rolmops", "st", "Haring (Clupea harengus)"),
@@ -74,7 +93,7 @@ ASSORTMENTS: dict[str, Assortment] = {a.id: a for a in (
         ("Gamba's", "kg", "Penaeus vannamei"),
         ("Inktvisringen", "kg", "Loligo spp., gepaneerd"),
         ("Vissalade", "100g"),
-        ("Visburger", "st"),
+        AssortmentItem("Visburger", "st", options=SAUCES),
         ("Zalmsalade", "100g"),
     )),
     Assortment("bakkerij", "Bakkerij", "BA", "bakker", _items(
@@ -117,5 +136,6 @@ def suggestions() -> list[dict]:
             if item.name not in seen:
                 seen.add(item.name)
                 out.append({"name": item.name, "unit": item.unit, "description": item.description,
-                            "template": item.template or (a.template if a.id == "vis" else None)})
+                            "template": item.template or (a.template if a.id == "vis" else None),
+                            "variants": list(item.variants), "options": list(item.options)})
     return sorted(out, key=lambda x: x["name"].lower())
