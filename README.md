@@ -34,6 +34,7 @@ en op afstand wordt gemonitord.
 7. [Certificering & wetgeving](docs/07-certificering-en-wetgeving.md)
 8. [Roadmap, team & kosten](docs/08-roadmap.md)
 9. [Managementsysteem: scannen bij uitlevering, voorraad & koppelen, abonnementen, wekelijkse check-in](docs/09-managementsysteem.md)
+10. [Testopstelling: displays en modules om te kopen](docs/10-testopstelling.md)
 
 ## Snel starten (zonder hardware)
 
